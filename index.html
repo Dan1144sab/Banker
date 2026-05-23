@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Banker" />
+  <title>Banker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    :root {
+      --green: #1a6b3c; --green-light: #2d8f55; --gold: #c9a84c; --gold-light: #e8c96a;
+      --cream: #f7f3ea; --dark: #0f1e13; --border: #d4c9ae; --text: #1a1a1a;
+      --muted: #6b7280; --win: #16a34a; --loss: #dc2626;
+    }
+    html, body { height: 100%; overflow: hidden; }
+    body { font-family: 'DM Sans', sans-serif; background: var(--cream); color: var(--text); overscroll-behavior: none; }
+
+    /* SCREENS */
+    .screen { display: none; height: 100vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .screen.active { display: block; }
+
+    /* SETUP */
+    #setup-screen {
+      background: linear-gradient(160deg, var(--dark) 0%, #1a3d24 60%, #0f2b1a 100%);
+      display: none; flex-direction: column; align-items: center; padding: 48px 20px 40px; gap: 28px;
+    }
+    #setup-screen.active { display: flex; }
+    .logo-icon { font-size: 52px; margin-bottom: 6px; text-align: center; }
+    .logo-title { font-family: 'Bebas Neue', sans-serif; font-size: 72px; color: var(--gold); letter-spacing: 6px; line-height: 1; text-align: center; }
+    .logo-sub { color: rgba(255,255,255,0.5); font-size: 13px; letter-spacing: 3px; text-transform: uppercase; margin-top: 4px; text-align: center; }
+    .setup-card { background: var(--cream); border-radius: 20px; padding: 28px 24px; width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 22px; }
+    .field-label { display: block; font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--green); margin-bottom: 10px; }
+    .count-pills { display: flex; gap: 8px; }
+    .pill { flex: 1; padding: 12px; border: 2px solid var(--border); background: white; border-radius: 10px; font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: 16px; cursor: pointer; color: var(--muted); transition: all 0.15s; }
+    .pill.active { border-color: var(--green); background: var(--green); color: white; }
+    .name-input { width: 100%; padding: 13px 14px; border: 2px solid var(--border); border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 16px; background: white; margin-bottom: 8px; color: var(--text); -webkit-appearance: none; }
+    .name-input:focus { outline: none; border-color: var(--green); }
+    .name-input:last-of-type { margin-bottom: 0; }
+    .setup-note { background: rgba(26,107,60,0.08); border: 1px solid rgba(26,107,60,0.2); border-radius: 10px; padding: 12px 14px; font-size: 13px; color: var(--green); line-height: 1.5; }
+    .start-btn { width: 100%; padding: 17px; background: var(--green); color: white; border: none; border-radius: 12px; font-family: 'Bebas Neue', sans-serif; font-size: 24px; letter-spacing: 2px; cursor: pointer; }
+    .start-btn:disabled { opacity: 0.4; }
+
+    /* GAME */
+    #game-screen { display: none; flex-direction: column; height: 100vh; }
+    #game-screen.active { display: flex; }
+    .game-top-bar { background: var(--dark); padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; padding-top: max(16px, env(safe-area-inset-top)); }
+    .game-title { font-family: 'Bebas Neue', sans-serif; color: var(--gold); font-size: 28px; letter-spacing: 3px; }
+    .summary-link { background: var(--gold); color: var(--dark); border: none; border-radius: 8px; padding: 8px 14px; font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: 13px; cursor: pointer; }
+    .game-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 40px; }
+
+    /* LEADERBOARD */
+    .leaderboard { background: white; margin: 14px 14px 6px; border-radius: 14px; border: 1.5px solid var(--border); overflow: hidden; }
+    .lb-header { background: var(--green); padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; }
+    .lb-title { font-family: 'Bebas Neue', sans-serif; color: white; font-size: 18px; letter-spacing: 2px; }
+    .lb-sub { color: rgba(255,255,255,0.6); font-size: 11px; font-weight: 500; }
+    .lb-row { display: flex; align-items: center; padding: 9px 16px; gap: 12px; border-bottom: 1px solid #f0e8d8; }
+    .lb-row:last-child { border-bottom: none; }
+    .lb-row.lb-leader { background: rgba(201,168,76,0.08); }
+    .lb-pos { font-size: 11px; font-weight: 700; color: var(--muted); width: 16px; }
+    .lb-name { flex: 1; font-weight: 500; font-size: 14px; }
+    .lb-amount { font-weight: 700; font-size: 15px; }
+    .lb-amount.pos { color: var(--win); }
+    .lb-amount.neg { color: var(--loss); }
+
+    /* HOLE NAV */
+    .hole-nav { display: flex; gap: 6px; padding: 6px 14px; overflow-x: auto; scrollbar-width: none; flex-shrink: 0; }
+    .hole-nav::-webkit-scrollbar { display: none; }
+    .hn-btn { min-width: 36px; height: 36px; border-radius: 8px; border: 1.5px solid var(--border); background: white; font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: 13px; cursor: pointer; color: var(--muted); flex-shrink: 0; }
+    .hn-btn.done { background: var(--green); border-color: var(--green); color: white; }
+    .hn-btn.cur { border-color: var(--gold); color: var(--gold); font-weight: 700; box-shadow: 0 0 0 2px rgba(201,168,76,0.25); }
+
+    /* HOLE CARD */
+    .hole-card { margin: 6px 14px; background: white; border-radius: 16px; border: 1.5px solid var(--border); overflow: hidden; }
+    .hole-card.locked { opacity: 0.88; }
+    .hole-header { background: var(--green); padding: 13px 18px; display: flex; align-items: center; justify-content: space-between; }
+    .hole-label { display: block; font-size: 10px; letter-spacing: 2px; color: rgba(255,255,255,0.6); font-weight: 600; }
+    .hole-num-big { font-family: 'Bebas Neue', sans-serif; font-size: 36px; color: white; line-height: 1; }
+    .banker-badge { display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.25); border-radius: 20px; padding: 6px 12px; }
+    .banker-name { color: var(--gold-light); font-weight: 600; font-size: 14px; }
+    .section { padding: 13px 18px; border-bottom: 1px solid #f0e8d8; }
+    .section-label { display: block; font-size: 10px; font-weight: 700; letter-spacing: 2px; color: var(--green); margin-bottom: 10px; }
+
+    /* BANKER PILLS */
+    .bs-pills { display: flex; gap: 7px; flex-wrap: wrap; }
+    .bs-pill { flex: 1; min-width: 60px; padding: 10px 8px; border: 2px solid var(--border); background: white; border-radius: 10px; font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: 14px; cursor: pointer; color: var(--muted); text-align: center; }
+    .bs-pill.active { border-color: var(--gold); background: var(--gold); color: var(--dark); }
+
+    /* LIMITS */
+    .limit-row { display: flex; align-items: flex-start; gap: 10px; }
+    .limit-field { flex: 1; }
+    .limit-label { display: block; font-size: 10px; font-weight: 700; color: var(--muted); margin-bottom: 6px; letter-spacing: 1px; }
+    .limit-divider { padding-top: 24px; font-size: 13px; color: var(--muted); }
+    .limit-pills { display: flex; flex-wrap: wrap; gap: 5px; }
+    .lp { padding: 6px 9px; border: 1.5px solid var(--border); background: white; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--muted); }
+    .lp.active { border-color: var(--green); background: var(--green); color: white; }
+    .limit-summary { margin-top: 10px; font-size: 12px; color: var(--muted); background: #f7f3ea; border-radius: 8px; padding: 8px 10px; }
+
+    /* WAGERS */
+    .wager-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .wager-row:last-child { margin-bottom: 0; }
+    .wager-name { font-weight: 600; font-size: 14px; min-width: 68px; }
+    .wager-pills { display: flex; flex-wrap: wrap; gap: 5px; }
+    .wp { padding: 7px 10px; border: 1.5px solid var(--border); background: white; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--muted); }
+    .wp.active { border-color: var(--gold); background: var(--gold); color: var(--dark); }
+
+    /* SCORES */
+    .player-row { display: flex; align-items: center; padding: 11px 0; gap: 12px; border-bottom: 1px solid #f3ede0; }
+    .player-row:last-child { border-bottom: none; }
+    .player-row.is-banker { background: rgba(26,107,60,0.03); border-radius: 8px; padding: 11px 6px; }
+    .player-info { flex: 1; }
+    .player-name { font-weight: 600; font-size: 15px; display: block; }
+    .banker-tag { font-size: 10px; letter-spacing: 1.5px; color: var(--green); font-weight: 700; margin-top: 2px; display: block; }
+    .wager-tag { font-size: 11px; color: var(--gold); font-weight: 600; margin-top: 2px; display: block; }
+    .inputs-area { display: flex; align-items: center; gap: 10px; }
+    .score-input { width: 60px; height: 48px; text-align: center; border: 2px solid var(--border); border-radius: 10px; font-size: 24px; font-weight: 700; font-family: 'Bebas Neue', sans-serif; color: var(--dark); background: var(--cream); -webkit-appearance: none; appearance: none; }
+    .score-input:focus { outline: none; border-color: var(--green); }
+    .score-input:disabled { opacity: 0.55; background: #eee; }
+    .result-chip { font-size: 13px; font-weight: 700; padding: 6px 10px; border-radius: 8px; min-width: 54px; text-align: center; }
+    .result-chip.win { background: #dcfce7; color: var(--win); }
+    .result-chip.loss { background: #fee2e2; color: var(--loss); }
+    .result-chip.push { background: #f3f4f6; color: var(--muted); }
+
+    /* LOCK BTN */
+    .hole-footer { padding: 14px 18px; }
+    .lock-btn { width: 100%; padding: 14px; background: var(--green); color: white; border: none; border-radius: 10px; font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 1.5px; cursor: pointer; }
+    .lock-btn:disabled { opacity: 0.35; font-size: 14px; letter-spacing: 0.5px; font-family: 'DM Sans', sans-serif; font-weight: 600; }
+    .unlock-btn { width: 100%; padding: 11px; background: transparent; border: 1.5px solid var(--border); border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; }
+
+    /* SUMMARY */
+    #summary-screen {
+      background: linear-gradient(160deg, var(--dark) 0%, #1a3d24 70%);
+      display: none; flex-direction: column; align-items: center;
+      padding: 40px 20px max(40px, env(safe-area-inset-bottom)); gap: 22px;
+    }
+    #summary-screen.active { display: flex; }
+    .summary-title { font-family: 'Bebas Neue', sans-serif; font-size: 52px; color: var(--gold); letter-spacing: 4px; }
+    .summary-card { width: 100%; max-width: 440px; background: var(--cream); border-radius: 20px; overflow: hidden; }
+    .summary-player { display: flex; align-items: center; padding: 17px 22px; border-bottom: 1px solid var(--border); gap: 14px; }
+    .summary-player:last-child { border-bottom: none; }
+    .sp-rank { font-family: 'Bebas Neue', sans-serif; font-size: 28px; color: var(--muted); width: 28px; }
+    .sp-rank.gold { color: var(--gold); }
+    .sp-name { flex: 1; font-weight: 600; font-size: 17px; }
+    .sp-amount { font-family: 'Bebas Neue', sans-serif; font-size: 30px; }
+    .sp-amount.pos { color: var(--win); }
+    .sp-amount.neg { color: var(--loss); }
+    .hole-log { width: 100%; max-width: 440px; }
+    .hole-log-title { font-family: 'Bebas Neue', sans-serif; color: rgba(255,255,255,0.45); font-size: 16px; letter-spacing: 2px; text-align: center; margin-bottom: 8px; }
+    .hole-log-row { background: rgba(255,255,255,0.06); border-radius: 10px; padding: 10px 14px; margin-bottom: 6px; }
+    .hlr-top { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+    .hlr-hole { font-family: 'Bebas Neue', sans-serif; color: var(--gold); font-size: 18px; min-width: 36px; }
+    .hlr-banker { font-size: 11px; color: rgba(255,255,255,0.45); }
+    .hlr-limit { font-size: 11px; color: rgba(255,255,255,0.3); margin-left: auto; }
+    .hlr-results { display: flex; gap: 7px; flex-wrap: wrap; }
+    .hlr-chip { font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 6px; }
+    .hlr-chip.pos { background: rgba(22,163,74,0.2); color: #4ade80; }
+    .hlr-chip.neg { background: rgba(220,38,38,0.2); color: #f87171; }
+    .hlr-chip.zero { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.4); }
+    .btns-row { display: flex; gap: 12px; }
+    .new-game-btn { padding: 15px 32px; background: var(--gold); color: var(--dark); border: none; border-radius: 14px; font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 2px; cursor: pointer; }
+
+    /* iOS install banner */
+    .install-banner { display: none; position: fixed; bottom: 0; left: 0; right: 0; background: var(--dark); color: white; padding: 14px 20px; font-size: 13px; text-align: center; z-index: 999; border-top: 1px solid rgba(255,255,255,0.1); }
+    .install-banner span { color: var(--gold); font-weight: 600; }
+    .install-banner .close-banner { float: right; background: none; border: none; color: rgba(255,255,255,0.5); font-size: 18px; cursor: pointer; margin-top: -2px; }
+  </style>
+</head>
+<body>
+
+  <!-- SETUP SCREEN -->
+  <div id="setup-screen" class="active">
+    <div>
+      <div class="logo-icon">⛳</div>
+      <div class="logo-title">BANKER</div>
+      <div class="logo-sub">Golf Wagering Scorecard</div>
+    </div>
+    <div class="setup-card">
+      <div>
+        <label class="field-label">Number of Players</label>
+        <div class="count-pills" id="count-pills">
+          <button class="pill" onclick="setCount(3)">3</button>
+          <button class="pill active" onclick="setCount(3)">3</button>
+          <button class="pill" onclick="setCount(4)">4</button>
+          <button class="pill" onclick="setCount(5)">5</button>
+        </div>
+      </div>
+      <div>
+        <label class="field-label">Player Names</label>
+        <div id="name-inputs"></div>
+      </div>
+      <div class="setup-note">💰 The banker sets betting limits each hole. Players declare their wager before teeing off.</div>
+      <button class="start-btn" id="start-btn" onclick="startGame()" disabled>Tee It Up →</button>
+    </div>
+  </div>
+
+  <!-- GAME SCREEN -->
+  <div id="game-screen">
+    <div class="game-top-bar">
+      <span class="game-title">⛳ BANKER</span>
+      <button class="summary-link" onclick="showSummary()">Final Summary</button>
+    </div>
+    <div class="game-scroll">
+      <div id="leaderboard"></div>
+      <div class="hole-nav" id="hole-nav"></div>
+      <div id="hole-card-container"></div>
+    </div>
+  </div>
+
+  <!-- SUMMARY SCREEN -->
+  <div id="summary-screen">
+    <div class="summary-title">🏆 Final Scores</div>
+    <div id="summary-card" class="summary-card"></div>
+    <div id="hole-log" class="hole-log"></div>
+    <div class="btns-row">
+      <button class="new-game-btn" onclick="showGame()">← Back</button>
+      <button class="new-game-btn" onclick="newGame()">New Game</button>
+    </div>
+  </div>
+
+  <!-- iOS Install Banner -->
+  <div class="install-banner" id="install-banner">
+    Tap <span>Share ↑</span> then <span>"Add to Home Screen"</span> to install
+    <button class="close-banner" onclick="document.getElementById('install-banner').style.display='none'">×</button>
+  </div>
+
+<script>
+const HOLES = 18;
+const BET_OPTIONS = [5, 10, 15, 20, 25, 30, 40, 50, 75, 100];
+
+let state = {
+  players: [],
+  playerCount: 3,
+  holes: [],
+  activeHole: 0,
+};
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function fmt(val) {
+  if (val === 0) return 'E';
+  return (val > 0 ? '+$' : '-$') + Math.abs(val);
+}
+
+function initHoles(players) {
+  return Array.from({ length: HOLES }, (_, i) => ({
+    hole: i + 1,
+    banker: null,
+    limitMin: 5,
+    limitMax: 25,
+    wagers: Object.fromEntries(players.map(p => [p, null])),
+    strokes: Object.fromEntries(players.map(p => [p, ''])),
+    locked: false,
+  }));
+}
+
+function calcHoleResult(hole) {
+  if (!hole.banker) return null;
+  const bankerStrokes = Number(hole.strokes[hole.banker]);
+  if (!bankerStrokes) return null;
+  const results = {};
+  let bankerNet = 0;
+  state.players.forEach(p => {
+    if (p === hole.banker) return;
+    const pStrokes = Number(hole.strokes[p]);
+    if (!pStrokes || hole.wagers[p] == null) return;
+    const wager = hole.wagers[p];
+    const diff = bankerStrokes - pStrokes;
+    let amount = diff > 0 ? wager : diff < 0 ? -wager : 0;
+    results[p] = amount;
+    bankerNet -= amount;
+  });
+  results[hole.banker] = bankerNet;
+  return results;
+}
+
+function calcTotals() {
+  const totals = Object.fromEntries(state.players.map(p => [p, 0]));
+  state.holes.forEach(hole => {
+    if (!hole.locked) return;
+    const res = calcHoleResult(hole);
+    if (!res) return;
+    state.players.forEach(p => { totals[p] += res[p] ?? 0; });
+  });
+  return totals;
+}
+
+// ── Setup ────────────────────────────────────────────────────────────────────
+function setCount(n) {
+  state.playerCount = n;
+  document.querySelectorAll('#count-pills .pill').forEach(b => {
+    b.classList.toggle('active', parseInt(b.textContent) === n);
+  });
+  renderNameInputs();
+}
+
+function renderNameInputs() {
+  const container = document.getElementById('name-inputs');
+  const existing = [...container.querySelectorAll('input')].map(i => i.value);
+  container.innerHTML = '';
+  for (let i = 0; i < state.playerCount; i++) {
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.className = 'name-input';
+    inp.placeholder = `Player ${i + 1}`;
+    inp.value = existing[i] || '';
+    inp.addEventListener('input', checkSetupValid);
+    // iOS: prevent zoom on focus
+    inp.style.fontSize = '16px';
+    container.appendChild(inp);
+  }
+  checkSetupValid();
+}
+
+function checkSetupValid() {
+  const inputs = [...document.querySelectorAll('.name-input')];
+  const valid = inputs.every(i => i.value.trim().length > 0);
+  document.getElementById('start-btn').disabled = !valid;
+}
+
+function startGame() {
+  const inputs = [...document.querySelectorAll('.name-input')];
+  state.players = inputs.map(i => i.value.trim());
+  state.holes = initHoles(state.players);
+  state.activeHole = 0;
+  showGame();
+  renderGame();
+}
+
+// ── Screens ───────────────────────────────────────────────────────────────────
+function showScreen(id) {
+  ['setup-screen','game-screen','summary-screen'].forEach(s => {
+    document.getElementById(s).classList.toggle('active', s === id);
+  });
+}
+function showGame() { showScreen('game-screen'); renderGame(); }
+function newGame() { showScreen('setup-screen'); }
+function showSummary() { showScreen('summary-screen'); renderSummary(); }
+
+// ── Game Render ───────────────────────────────────────────────────────────────
+function renderGame() {
+  renderLeaderboard();
+  renderHoleNav();
+  renderHoleCard();
+}
+
+function renderLeaderboard() {
+  const totals = calcTotals();
+  const sorted = [...state.players].sort((a, b) => totals[b] - totals[a]);
+  const holesPlayed = state.holes.filter(h => h.locked).length;
+  document.getElementById('leaderboard').innerHTML = `
+    <div class="leaderboard">
+      <div class="lb-header">
+        <span class="lb-title">LEADERBOARD</span>
+        <span class="lb-sub">${holesPlayed}/18 holes</span>
+      </div>
+      ${sorted.map((p, i) => {
+        const val = totals[p];
+        return `<div class="lb-row ${i === 0 && val > 0 ? 'lb-leader' : ''}">
+          <span class="lb-pos">${i + 1}</span>
+          <span class="lb-name">${p}</span>
+          <span class="lb-amount ${val > 0 ? 'pos' : val < 0 ? 'neg' : ''}">${fmt(val)}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function renderHoleNav() {
+  document.getElementById('hole-nav').innerHTML = state.holes.map((h, i) =>
+    `<button class="hn-btn ${h.locked ? 'done' : ''} ${i === state.activeHole ? 'cur' : ''}"
+      onclick="goHole(${i})">${i + 1}</button>`
+  ).join('');
+}
+
+function goHole(i) {
+  state.activeHole = i;
+  renderGame();
+  document.getElementById('hole-card-container').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function renderHoleCard() {
+  const hole = state.holes[state.activeHole];
+  const isLocked = hole.locked;
+  const result = isLocked ? calcHoleResult(hole) : null;
+  const bankerSet = !!hole.banker;
+  const validWagers = BET_OPTIONS.filter(v => v >= hole.limitMin && v <= hole.limitMax);
+  const nonBankers = state.players.filter(p => p !== hole.banker);
+  const allWagersDeclared = bankerSet && nonBankers.every(p => hole.wagers[p] != null);
+  const allScoresEntered = bankerSet && state.players.every(p => String(hole.strokes[p]).trim() !== '');
+  const readyToLock = allWagersDeclared && allScoresEntered;
+
+  let lockLabel;
+  if (!bankerSet) lockLabel = 'Select a Banker First';
+  else if (!allWagersDeclared) lockLabel = 'All Players Must Declare Wager';
+  else if (!allScoresEntered) lockLabel = 'Enter All Scores';
+  else lockLabel = `Lock Hole ${hole.hole}`;
+
+  let html = `<div class="hole-card ${isLocked ? 'locked' : ''}">
+    <div class="hole-header">
+      <div>
+        <span class="hole-label">HOLE</span>
+        <span class="hole-num-big">${hole.hole}</span>
+      </div>
+      <div class="banker-badge">
+        <span style="font-size:16px">🏦</span>
+        <span class="banker-name">${hole.banker ?? 'Select Banker'}</span>
+      </div>
+    </div>`;
+
+  // Step 1: Banker selector
+  if (!isLocked) {
+    html += `<div class="section">
+      <span class="section-label">① WHO'S THE BANKER?</span>
+      <div class="bs-pills">
+        ${state.players.map(p => `<button class="bs-pill ${hole.banker === p ? 'active' : ''}"
+          onclick="setBanker('${esc(p)}')">${p}</button>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  // Step 2: Banker sets limits
+  if (bankerSet && !isLocked) {
+    html += `<div class="section">
+      <span class="section-label">② BANKER SETS LIMITS</span>
+      <div class="limit-row">
+        <div class="limit-field">
+          <label class="limit-label">MIN</label>
+          <div class="limit-pills">
+            ${BET_OPTIONS.filter(v => v <= hole.limitMax).map(v =>
+              `<button class="lp ${hole.limitMin === v ? 'active' : ''}" onclick="setLimit('min',${v})">$${v}</button>`
+            ).join('')}
+          </div>
+        </div>
+        <div class="limit-divider">to</div>
+        <div class="limit-field">
+          <label class="limit-label">MAX</label>
+          <div class="limit-pills">
+            ${BET_OPTIONS.filter(v => v >= hole.limitMin).map(v =>
+              `<button class="lp ${hole.limitMax === v ? 'active' : ''}" onclick="setLimit('max',${v})">$${v}</button>`
+            ).join('')}
+          </div>
+        </div>
+      </div>
+      ${validWagers.length > 0 ? `<div class="limit-summary">Allowed: ${validWagers.map(v=>`$${v}`).join(', ')}</div>` : ''}
+    </div>`;
+  }
+
+  // Step 3: Player wagers
+  if (bankerSet && !isLocked) {
+    html += `<div class="section">
+      <span class="section-label">③ PLAYER WAGERS</span>
+      ${nonBankers.map(p => `
+        <div class="wager-row">
+          <span class="wager-name">${p}</span>
+          <div class="wager-pills">
+            ${validWagers.map(v =>
+              `<button class="wp ${hole.wagers[p] === v ? 'active' : ''}" onclick="setWager('${esc(p)}',${v})">$${v}</button>`
+            ).join('')}
+          </div>
+        </div>`).join('')}
+    </div>`;
+  }
+
+  // Step 4: Scores
+  if (bankerSet) {
+    html += `<div class="section">
+      <span class="section-label">${isLocked ? 'SCORES' : '④ ENTER SCORES'}</span>
+      ${state.players.map(p => {
+        const resVal = result ? (result[p] ?? 0) : null;
+        const chipClass = resVal > 0 ? 'win' : resVal < 0 ? 'loss' : 'push';
+        return `<div class="player-row ${p === hole.banker ? 'is-banker' : ''}">
+          <div class="player-info">
+            <span class="player-name">${p}</span>
+            ${p === hole.banker ? `<span class="banker-tag">BANKER</span>` : ''}
+            ${!isLocked && p !== hole.banker && hole.wagers[p] != null ? `<span class="wager-tag">wagered $${hole.wagers[p]}</span>` : ''}
+          </div>
+          <div class="inputs-area">
+            <input type="number" inputmode="numeric" pattern="[0-9]*" min="1" max="15"
+              class="score-input" ${isLocked ? 'disabled' : ''}
+              value="${hole.strokes[p]}" placeholder="—"
+              onchange="setStroke('${esc(p)}', this.value)"
+              oninput="setStroke('${esc(p)}', this.value)" />
+            ${isLocked && result != null ? `<div class="result-chip ${chipClass}">${fmt(resVal)}</div>` : ''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  // Footer
+  html += `<div class="hole-footer">
+    ${!isLocked
+      ? `<button class="lock-btn" ${readyToLock ? '' : 'disabled'} onclick="lockHole()">${lockLabel}</button>`
+      : `<button class="unlock-btn" onclick="unlockHole()">✏️ Edit Hole</button>`}
+  </div></div>`;
+
+  document.getElementById('hole-card-container').innerHTML = html;
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────────
+function esc(str) { return str.replace(/'/g, "\\'"); }
+
+function setBanker(player) {
+  const h = state.holes[state.activeHole];
+  h.banker = player;
+  h.wagers = Object.fromEntries(state.players.map(p => [p, null]));
+  renderGame();
+}
+
+function setLimit(type, value) {
+  const h = state.holes[state.activeHole];
+  if (type === 'min') { h.limitMin = value; if (h.limitMax < value) h.limitMax = value; }
+  else { h.limitMax = value; if (h.limitMin > value) h.limitMin = value; }
+  state.players.forEach(p => {
+    if (h.wagers[p] != null && (h.wagers[p] < h.limitMin || h.wagers[p] > h.limitMax)) h.wagers[p] = null;
+  });
+  renderGame();
+}
+
+function setWager(player, amount) {
+  state.holes[state.activeHole].wagers[player] = amount;
+  renderGame();
+}
+
+function setStroke(player, value) {
+  state.holes[state.activeHole].strokes[player] = value;
+  // re-render just the lock button state without full redraw (avoid losing focus)
+  const h = state.holes[state.activeHole];
+  const nonBankers = state.players.filter(p => p !== h.banker);
+  const allWagersDeclared = !!h.banker && nonBankers.every(p => h.wagers[p] != null);
+  const allScoresEntered = !!h.banker && state.players.every(p => String(h.strokes[p]).trim() !== '');
+  const readyToLock = allWagersDeclared && allScoresEntered;
+  const btn = document.querySelector('.lock-btn');
+  if (btn) {
+    btn.disabled = !readyToLock;
+    if (readyToLock) btn.textContent = `Lock Hole ${h.hole}`;
+  }
+  renderLeaderboard();
+}
+
+function lockHole() {
+  state.holes[state.activeHole].locked = true;
+  if (state.activeHole < HOLES - 1) {
+    state.activeHole++;
+  }
+  renderGame();
+  // scroll hole nav to active hole
+  setTimeout(() => {
+    const nav = document.getElementById('hole-nav');
+    const btn = nav.children[state.activeHole];
+    if (btn) btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+  }, 100);
+}
+
+function unlockHole() {
+  state.holes[state.activeHole].locked = false;
+  renderGame();
+}
+
+// ── Summary ───────────────────────────────────────────────────────────────────
+function renderSummary() {
+  const totals = calcTotals();
+  const sorted = [...state.players].sort((a, b) => totals[b] - totals[a]);
+
+  document.getElementById('summary-card').innerHTML = sorted.map((p, i) => {
+    const val = totals[p];
+    return `<div class="summary-player">
+      <span class="sp-rank ${i === 0 ? 'gold' : ''}">${i + 1}</span>
+      <span class="sp-name">${p}</span>
+      <span class="sp-amount ${val > 0 ? 'pos' : val < 0 ? 'neg' : ''}">${fmt(val)}</span>
+    </div>`;
+  }).join('');
+
+  const lockedHoles = state.holes.filter(h => h.locked);
+  document.getElementById('hole-log').innerHTML = `
+    <div class="hole-log-title">HOLE BY HOLE</div>
+    ${lockedHoles.map(h => {
+      const res = calcHoleResult(h);
+      return `<div class="hole-log-row">
+        <div class="hlr-top">
+          <span class="hlr-hole">H${h.hole}</span>
+          <span class="hlr-banker">🏦 ${h.banker}</span>
+          <span class="hlr-limit">$${h.limitMin}–$${h.limitMax}</span>
+        </div>
+        <div class="hlr-results">
+          ${state.players.map(p => {
+            const v = res ? (res[p] ?? 0) : 0;
+            return `<span class="hlr-chip ${v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero'}">${p}: ${fmt(v)}</span>`;
+          }).join('')}
+        </div>
+      </div>`;
+    }).join('')}`;
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+// Build initial count pills properly
+document.getElementById('count-pills').innerHTML = [3,4,5].map(n =>
+  `<button class="pill ${n===3?'active':''}" onclick="setCount(${n})">${n}</button>`
+).join('');
+state.playerCount = 3;
+renderNameInputs();
+
+// Show iOS install banner if not standalone
+if (!window.navigator.standalone && /iPhone|iPad|iPod/.test(navigator.userAgent)) {
+  setTimeout(() => { document.getElementById('install-banner').style.display = 'block'; }, 1500);
+}
+</script>
+</body>
+</html>
