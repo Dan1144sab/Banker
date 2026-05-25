@@ -1,773 +1,700 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Banker" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Banker"/>
   <title>Banker</title>
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;600&display=swap" rel="stylesheet"/>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-    :root {
-      --green: #1a6b3c; --green-light: #2d8f55; --gold: #c9a84c; --gold-light: #e8c96a;
-      --cream: #f7f3ea; --dark: #0f1e13; --border: #d4c9ae; --text: #1a1a1a;
-      --muted: #6b7280; --win: #16a34a; --loss: #dc2626;
-    }
-    html, body { height: 100%; overflow: hidden; }
-    body { font-family: 'DM Sans', sans-serif; background: var(--cream); color: var(--text); overscroll-behavior: none; }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+    :root{--green:#1a6b3c;--green2:#2d8f55;--gold:#c9a84c;--goldk:#e8c96a;--cream:#f7f3ea;--dark:#0f1e13;--border:#d4c9ae;--txt:#1a1a1a;--muted:#6b7280;--win:#16a34a;--loss:#dc2626}
+    html,body{height:100%;overflow:hidden}
+    body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--txt);overscroll-behavior:none}
 
-    /* LOBBY */
-    #lobby-screen { background: linear-gradient(160deg, var(--dark) 0%, #1a3d24 60%, #0f2b1a 100%); display: none; flex-direction: column; align-items: center; padding: 48px 20px 40px; gap: 28px; min-height: 100vh; overflow-y: auto; }
-    #lobby-screen.active { display: flex; }
-    .logo-icon { font-size: 52px; text-align: center; }
-    .logo-title { font-family: 'Bebas Neue', sans-serif; font-size: 72px; color: var(--gold); letter-spacing: 6px; line-height: 1; text-align: center; }
-    .logo-sub { color: rgba(255,255,255,0.5); font-size: 13px; letter-spacing: 3px; text-transform: uppercase; margin-top: 4px; text-align: center; }
+    /* ── SETUP ── */
+    #S{display:none;flex-direction:column;align-items:center;padding:24px 16px 60px;gap:16px;min-height:100vh;overflow-y:auto;-webkit-overflow-scrolling:touch;background:linear-gradient(160deg,var(--dark) 0%,#1a3d24 60%,#0f2b1a 100%)}
+    #S.on{display:flex}
+    .logo{text-align:center}.logo-i{font-size:36px}.logo-t{font-family:'Bebas Neue',sans-serif;font-size:52px;color:var(--gold);letter-spacing:6px;line-height:1}
+    .card{background:var(--cream);border-radius:20px;padding:20px 18px;width:100%;max-width:420px;display:flex;flex-direction:column;gap:14px}
+    .flbl{font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--green);display:block;margin-bottom:8px}
+    .pills{display:flex;gap:8px}
+    .pill{flex:1;padding:9px;border:2px solid var(--border);background:white;border-radius:10px;font-family:'DM Sans',sans-serif;font-weight:600;font-size:16px;cursor:pointer;color:var(--muted)}
+    .pill.on{border-color:var(--green);background:var(--green);color:white}
+    .prow{display:flex;gap:8px;margin-bottom:6px}
+    .ni{flex:1;padding:10px 12px;border:2px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:16px;background:white;color:var(--txt);-webkit-appearance:none;margin:0}
+    .ni:focus{outline:none;border-color:var(--green)}
+    .hi{width:72px;padding:10px 6px;border:2px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:16px;background:white;color:var(--txt);-webkit-appearance:none;text-align:center;flex-shrink:0}
+    .hi:focus{outline:none;border-color:var(--green)}
+    .sbtn{width:100%;padding:14px;background:var(--green);color:white;border:none;border-radius:12px;font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;cursor:pointer}
+    .sbtn:disabled{opacity:0.4}
 
-    .lobby-card { background: var(--cream); border-radius: 20px; padding: 28px 24px; width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 16px; }
-    .lobby-btn { width: 100%; padding: 17px; border: none; border-radius: 12px; font-family: 'Bebas Neue', sans-serif; font-size: 24px; letter-spacing: 2px; cursor: pointer; }
-    .lobby-btn.primary { background: var(--green); color: white; }
-    .lobby-btn.secondary { background: var(--gold); color: var(--dark); }
-    .lobby-btn:disabled { opacity: 0.4; }
-    .lobby-divider { text-align: center; font-size: 12px; color: var(--muted); font-weight: 600; letter-spacing: 1px; }
+    /* ── GAME ── */
+    #G{display:none;flex-direction:column;height:100vh}
+    #G.on{display:flex}
+    .topbar{background:var(--dark);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;padding-top:max(14px,env(safe-area-inset-top))}
+    .gtitle{font-family:'Bebas Neue',sans-serif;color:var(--gold);font-size:26px;letter-spacing:3px}
+    .tbbtns{display:flex;gap:8px}
+    .tbtn{padding:7px 12px;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-weight:600;font-size:12px;cursor:pointer}
+    .tbtn.gold{background:var(--gold);color:var(--dark)}
+    .tbtn.blue{background:#1e40af;color:white}
+    .tbtn.red{background:#dc2626;color:white}
+    .gscroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:40px}
 
-    .join-row { display: flex; gap: 8px; }
-    .join-input { flex: 1; padding: 13px 14px; border: 2px solid var(--border); border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 20px; font-weight: 700; letter-spacing: 4px; text-transform: uppercase; background: white; color: var(--text); -webkit-appearance: none; text-align: center; }
-    .join-input:focus { outline: none; border-color: var(--green); }
-    .join-btn { padding: 13px 18px; background: var(--green); color: white; border: none; border-radius: 10px; font-family: 'Bebas Neue', sans-serif; font-size: 18px; cursor: pointer; }
+    /* ── LEADERBOARD ── */
+    .lb{background:white;margin:12px 12px 6px;border-radius:14px;border:1.5px solid var(--border);overflow:hidden}
+    .lbh{background:var(--green);padding:9px 14px;display:flex;justify-content:space-between;align-items:center}
+    .lbt{font-family:'Bebas Neue',sans-serif;color:white;font-size:17px;letter-spacing:2px}
+    .lbs{color:rgba(255,255,255,0.6);font-size:11px}
+    .lbr{display:flex;align-items:center;padding:8px 14px;gap:10px;border-bottom:1px solid #f0e8d8}
+    .lbr:last-child{border-bottom:none}
+    .lbr.lead{background:rgba(201,168,76,0.08)}
+    .lbp{font-size:11px;font-weight:700;color:var(--muted);width:14px}
+    .lbn{flex:1;font-weight:500;font-size:13px}
+    .lba{font-weight:700;font-size:14px}
+    .lba.pos{color:var(--win)}.lba.neg{color:var(--loss)}
 
-    .field-label { display: block; font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--green); margin-bottom: 10px; }
-    .count-pills { display: flex; gap: 8px; }
-    .pill { flex: 1; padding: 12px; border: 2px solid var(--border); background: white; border-radius: 10px; font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: 16px; cursor: pointer; color: var(--muted); }
-    .pill.active { border-color: var(--green); background: var(--green); color: white; }
-    .name-input { width: 100%; padding: 13px 14px; border: 2px solid var(--border); border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 16px; background: white; margin-bottom: 8px; color: var(--text); -webkit-appearance: none; }
-    .name-input:focus { outline: none; border-color: var(--green); }
-    .setup-note { background: rgba(26,107,60,0.08); border: 1px solid rgba(26,107,60,0.2); border-radius: 10px; padding: 12px 14px; font-size: 13px; color: var(--green); line-height: 1.5; }
+    /* ── HOLE NAV ── */
+    .hnav{display:flex;gap:5px;padding:5px 12px;overflow-x:auto;scrollbar-width:none;flex-shrink:0}
+    .hnav::-webkit-scrollbar{display:none}
+    .hn{min-width:34px;height:34px;border-radius:7px;border:1.5px solid var(--border);background:white;font-weight:600;font-size:12px;cursor:pointer;color:var(--muted);flex-shrink:0}
+    .hn.done{background:var(--green);border-color:var(--green);color:white}
+    .hn.cur{border-color:var(--gold);color:var(--gold);font-weight:700;box-shadow:0 0 0 2px rgba(201,168,76,0.25)}
 
-    /* GAME CODE DISPLAY */
-    .game-code-box { background: var(--dark); border-radius: 14px; padding: 16px; text-align: center; }
-    .game-code-label { font-size: 11px; letter-spacing: 2px; color: rgba(255,255,255,0.5); font-weight: 600; margin-bottom: 6px; }
-    .game-code-val { font-family: 'Bebas Neue', sans-serif; font-size: 48px; color: var(--gold); letter-spacing: 8px; }
-    .game-code-hint { font-size: 12px; color: rgba(255,255,255,0.4); margin-top: 4px; }
+    /* ── HOLE CARD ── */
+    .hcard{margin:5px 12px;background:white;border-radius:14px;border:1.5px solid var(--border);overflow:hidden}
+    .hcard.locked{opacity:0.88}
+    .hhdr{background:var(--green);padding:12px 16px;display:flex;align-items:center;justify-content:space-between}
+    .hlbl{display:block;font-size:10px;letter-spacing:2px;color:rgba(255,255,255,0.6);font-weight:600}
+    .hnum{font-family:'Bebas Neue',sans-serif;font-size:34px;color:white;line-height:1}
+    .hinfo{font-size:11px;color:rgba(255,255,255,0.5);text-align:center}
+    .bbadge{display:flex;align-items:center;gap:5px;background:rgba(0,0,0,0.25);border-radius:20px;padding:5px 10px}
+    .bnm{color:var(--goldk);font-weight:600;font-size:13px}
+    .sec{padding:11px 16px;border-bottom:1px solid #f0e8d8}
+    .slbl{display:block;font-size:10px;font-weight:700;letter-spacing:2px;color:var(--green);margin-bottom:9px}
 
-    /* SPECTATOR BANNER */
-    .spectator-banner { background: #7c3aed; color: white; text-align: center; padding: 8px 16px; font-size: 13px; font-weight: 600; letter-spacing: 1px; flex-shrink: 0; }
+    /* banker pills */
+    .bpills{display:flex;gap:6px;flex-wrap:wrap}
+    .bpill{flex:1;min-width:56px;padding:9px 6px;border:2px solid var(--border);background:white;border-radius:9px;font-weight:600;font-size:13px;cursor:pointer;color:var(--muted);text-align:center}
+    .bpill.on{border-color:var(--gold);background:var(--gold);color:var(--dark)}
 
-    /* GAME */
-    #game-screen { display: none; flex-direction: column; height: 100vh; }
-    #game-screen.active { display: flex; }
-    .game-top-bar { background: var(--dark); padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; padding-top: max(16px, env(safe-area-inset-top)); }
-    .game-title { font-family: 'Bebas Neue', sans-serif; color: var(--gold); font-size: 28px; letter-spacing: 3px; }
-    .summary-link { background: var(--gold); color: var(--dark); border: none; border-radius: 8px; padding: 8px 14px; font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: 13px; cursor: pointer; }
-    .game-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 40px; }
+    /* limits */
+    .limrow{display:flex;align-items:flex-start;gap:8px}
+    .limf{flex:1}
+    .liml{display:block;font-size:10px;font-weight:700;color:var(--muted);margin-bottom:5px;letter-spacing:1px}
+    .limdiv{padding-top:22px;font-size:12px;color:var(--muted)}
+    .lpills{display:flex;flex-wrap:wrap;gap:4px}
+    .lp{padding:5px 8px;border:1.5px solid var(--border);background:white;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;color:var(--muted)}
+    .lp.on{border-color:var(--green);background:var(--green);color:white}
+    .limsum{margin-top:8px;font-size:11px;color:var(--muted);background:#f7f3ea;border-radius:7px;padding:6px 9px}
 
-    /* LEADERBOARD */
-    .leaderboard { background: white; margin: 14px 14px 6px; border-radius: 14px; border: 1.5px solid var(--border); overflow: hidden; }
-    .lb-header { background: var(--green); padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; }
-    .lb-title { font-family: 'Bebas Neue', sans-serif; color: white; font-size: 18px; letter-spacing: 2px; }
-    .lb-sub { color: rgba(255,255,255,0.6); font-size: 11px; font-weight: 500; }
-    .lb-row { display: flex; align-items: center; padding: 9px 16px; gap: 12px; border-bottom: 1px solid #f0e8d8; }
-    .lb-row:last-child { border-bottom: none; }
-    .lb-row.lb-leader { background: rgba(201,168,76,0.08); }
-    .lb-pos { font-size: 11px; font-weight: 700; color: var(--muted); width: 16px; }
-    .lb-name { flex: 1; font-weight: 500; font-size: 14px; }
-    .lb-amount { font-weight: 700; font-size: 15px; }
-    .lb-amount.pos { color: var(--win); } .lb-amount.neg { color: var(--loss); }
+    /* wagers */
+    .wrow{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+    .wrow:last-child{margin-bottom:0}
+    .wnm{font-weight:600;font-size:13px;min-width:60px}
+    .wpills{display:flex;flex-wrap:wrap;gap:4px}
+    .wp{padding:6px 8px;border:1.5px solid var(--border);background:white;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;color:var(--muted)}
+    .wp.on{border-color:var(--gold);background:var(--gold);color:var(--dark)}
 
-    /* HOLE NAV */
-    .hole-nav { display: flex; gap: 6px; padding: 6px 14px; overflow-x: auto; scrollbar-width: none; flex-shrink: 0; }
-    .hole-nav::-webkit-scrollbar { display: none; }
-    .hn-btn { min-width: 36px; height: 36px; border-radius: 8px; border: 1.5px solid var(--border); background: white; font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: 13px; cursor: pointer; color: var(--muted); flex-shrink: 0; }
-    .hn-btn.done { background: var(--green); border-color: var(--green); color: white; }
-    .hn-btn.cur { border-color: var(--gold); color: var(--gold); font-weight: 700; box-shadow: 0 0 0 2px rgba(201,168,76,0.25); }
+    /* player rows */
+    .prows{display:flex;flex-direction:column}
+    .prow2{padding:10px 0;border-bottom:1px solid #f3ede0}
+    .prow2:last-child{border-bottom:none}
+    .prow2.ib{background:rgba(26,107,60,0.03);border-radius:7px;padding:10px 5px}
+    .ptop{display:flex;align-items:center;gap:10px}
+    .pinfo{flex:1}
+    .pname{font-weight:600;font-size:14px;display:block}
+    .btag{font-size:10px;letter-spacing:1.5px;color:var(--green);font-weight:700;margin-top:1px;display:block}
+    .wtag{font-size:11px;color:var(--gold);font-weight:600;margin-top:1px;display:block}
+    .iarea{display:flex;align-items:center;gap:8px}
+    .sbadge{font-size:11px;font-weight:700;background:#fef3c7;color:#d97706;border-radius:5px;padding:2px 5px}
+    .sinp{width:56px;height:46px;text-align:center;border:2px solid var(--border);border-radius:9px;font-size:22px;font-weight:700;font-family:'Bebas Neue',sans-serif;color:var(--dark);background:var(--cream);-webkit-appearance:none}
+    .sinp:focus{outline:none;border-color:var(--green)}
+    .sinp:disabled{opacity:0.55;background:#eee}
+    .nbadge{font-size:12px;font-weight:700;background:#ede9fe;color:#7c3aed;border-radius:5px;padding:2px 6px}
+    .rchip{font-size:13px;font-weight:700;padding:5px 9px;border-radius:7px;min-width:50px;text-align:center}
+    .rchip.win{background:#dcfce7;color:var(--win)}
+    .rchip.loss{background:#fee2e2;color:var(--loss)}
+    .rchip.push{background:#f3f4f6;color:var(--muted)}
 
-    /* HOLE CARD */
-    .hole-card { margin: 6px 14px; background: white; border-radius: 16px; border: 1.5px solid var(--border); overflow: hidden; }
-    .hole-card.locked { opacity: 0.88; }
-    .hole-header { background: var(--green); padding: 13px 18px; display: flex; align-items: center; justify-content: space-between; }
-    .hole-label { display: block; font-size: 10px; letter-spacing: 2px; color: rgba(255,255,255,0.6); font-weight: 600; }
-    .hole-num-big { font-family: 'Bebas Neue', sans-serif; font-size: 36px; color: white; line-height: 1; }
-    .banker-badge { display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.25); border-radius: 20px; padding: 6px 12px; }
-    .banker-name { color: var(--gold-light); font-weight: 600; font-size: 14px; }
-    .section { padding: 13px 18px; border-bottom: 1px solid #f0e8d8; }
-    .section:last-of-type { border-bottom: none; }
-    .section-label { display: block; font-size: 10px; font-weight: 700; letter-spacing: 2px; color: var(--green); margin-bottom: 10px; }
-    .bs-pills { display: flex; gap: 7px; flex-wrap: wrap; }
-    .bs-pill { flex: 1; min-width: 60px; padding: 10px 8px; border: 2px solid var(--border); background: white; border-radius: 10px; font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: 14px; cursor: pointer; color: var(--muted); text-align: center; }
-    .bs-pill.active { border-color: var(--gold); background: var(--gold); color: var(--dark); }
-    .limit-row { display: flex; align-items: flex-start; gap: 10px; }
-    .limit-field { flex: 1; }
-    .limit-label { display: block; font-size: 10px; font-weight: 700; color: var(--muted); margin-bottom: 6px; letter-spacing: 1px; }
-    .limit-divider { padding-top: 24px; font-size: 13px; color: var(--muted); }
-    .limit-pills { display: flex; flex-wrap: wrap; gap: 5px; }
-    .lp { padding: 6px 9px; border: 1.5px solid var(--border); background: white; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--muted); }
-    .lp.active { border-color: var(--green); background: var(--green); color: white; }
-    .limit-summary { margin-top: 10px; font-size: 12px; color: var(--muted); background: #f7f3ea; border-radius: 8px; padding: 8px 10px; }
-    .wager-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-    .wager-row:last-child { margin-bottom: 0; }
-    .wager-name { font-weight: 600; font-size: 14px; min-width: 68px; }
-    .wager-pills { display: flex; flex-wrap: wrap; gap: 5px; }
-    .wp { padding: 7px 10px; border: 1.5px solid var(--border); background: white; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--muted); }
-    .wp.active { border-color: var(--gold); background: var(--gold); color: var(--dark); }
-    .player-rows { display: flex; flex-direction: column; }
-    .player-row { padding: 12px 0; border-bottom: 1px solid #f3ede0; }
-    .player-row:last-child { border-bottom: none; }
-    .player-row.is-banker { background: rgba(26,107,60,0.03); border-radius: 8px; padding: 12px 6px; }
-    .player-top { display: flex; align-items: center; gap: 12px; }
-    .player-info { flex: 1; }
-    .player-name { font-weight: 600; font-size: 15px; display: block; }
-    .banker-tag { font-size: 10px; letter-spacing: 1.5px; color: var(--green); font-weight: 700; margin-top: 2px; display: block; }
-    .wager-tag { font-size: 11px; color: var(--gold); font-weight: 600; margin-top: 2px; display: block; }
-    .inputs-area { display: flex; align-items: center; gap: 10px; }
-    .score-input { width: 60px; height: 48px; text-align: center; border: 2px solid var(--border); border-radius: 10px; font-size: 24px; font-weight: 700; font-family: 'Bebas Neue', sans-serif; color: var(--dark); background: var(--cream); -webkit-appearance: none; appearance: none; }
-    .score-input:focus { outline: none; border-color: var(--green); }
-    .score-input:disabled { opacity: 0.55; background: #eee; }
-    .result-chip { font-size: 13px; font-weight: 700; padding: 6px 10px; border-radius: 8px; min-width: 54px; text-align: center; }
-    .result-chip.win { background: #dcfce7; color: var(--win); }
-    .result-chip.loss { background: #fee2e2; color: var(--loss); }
-    .result-chip.push { background: #f3f4f6; color: var(--muted); }
-    .press-row { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding-left: 2px; flex-wrap: wrap; }
-    .press-label { font-size: 10px; font-weight: 700; letter-spacing: 1px; color: var(--muted); margin-right: 2px; }
-    .press-btn { padding: 5px 11px; border-radius: 20px; border: 1.5px solid var(--border); background: white; font-size: 12px; font-weight: 700; cursor: pointer; color: var(--muted); }
-    .press-btn.active-press { border-color: #f97316; background: #f97316; color: white; }
-    .press-btn.active-triple { border-color: #dc2626; background: #dc2626; color: white; }
-    .press-btn.active-banker { border-color: #7c3aed; background: #7c3aed; color: white; }
-    .final-bet { font-size: 12px; font-weight: 700; color: var(--text); background: #f0e8d8; border-radius: 8px; padding: 4px 9px; margin-left: auto; }
-    .hole-footer { padding: 14px 18px; }
-    .lock-btn { width: 100%; padding: 14px; background: var(--green); color: white; border: none; border-radius: 10px; font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 1.5px; cursor: pointer; }
-    .lock-btn:disabled { opacity: 0.35; font-size: 14px; letter-spacing: 0.5px; font-family: 'DM Sans', sans-serif; font-weight: 600; }
-    .unlock-btn { width: 100%; padding: 11px; background: transparent; border: 1.5px solid var(--border); border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; }
+    /* press */
+    .pressrow{display:flex;align-items:center;gap:5px;margin-top:7px;flex-wrap:wrap}
+    .presslbl{font-size:10px;font-weight:700;letter-spacing:1px;color:var(--muted)}
+    .prbtn{padding:4px 10px;border-radius:18px;border:1.5px solid var(--border);background:white;font-size:11px;font-weight:700;cursor:pointer;color:var(--muted)}
+    .prbtn.p2{border-color:#f97316;background:#f97316;color:white}
+    .prbtn.p3{border-color:#dc2626;background:#dc2626;color:white}
+    .prbtn.pb{border-color:#7c3aed;background:#7c3aed;color:white}
+    .fbet{font-size:12px;font-weight:700;background:#f0e8d8;border-radius:7px;padding:3px 8px;margin-left:auto}
 
-    /* SUMMARY */
-    #summary-screen { background: linear-gradient(160deg, var(--dark) 0%, #1a3d24 70%); display: none; flex-direction: column; align-items: center; padding: 40px 20px 60px; gap: 22px; overflow-y: auto; min-height: 100vh; }
-    #summary-screen.active { display: flex; }
-    .summary-title { font-family: 'Bebas Neue', sans-serif; font-size: 52px; color: var(--gold); letter-spacing: 4px; }
-    .summary-card { width: 100%; max-width: 440px; background: var(--cream); border-radius: 20px; overflow: hidden; }
-    .summary-player { display: flex; align-items: center; padding: 17px 22px; border-bottom: 1px solid var(--border); gap: 14px; }
-    .summary-player:last-child { border-bottom: none; }
-    .sp-rank { font-family: 'Bebas Neue', sans-serif; font-size: 28px; color: var(--muted); width: 28px; }
-    .sp-rank.gold { color: var(--gold); }
-    .sp-name { flex: 1; font-weight: 600; font-size: 17px; }
-    .sp-amount { font-family: 'Bebas Neue', sans-serif; font-size: 30px; }
-    .sp-amount.pos { color: var(--win); } .sp-amount.neg { color: var(--loss); }
-    .hole-log { width: 100%; max-width: 440px; }
-    .hole-log-title { font-family: 'Bebas Neue', sans-serif; color: rgba(255,255,255,0.45); font-size: 16px; letter-spacing: 2px; text-align: center; margin-bottom: 8px; }
-    .hole-log-row { background: rgba(255,255,255,0.06); border-radius: 10px; padding: 10px 14px; margin-bottom: 6px; }
-    .hlr-top { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
-    .hlr-hole { font-family: 'Bebas Neue', sans-serif; color: var(--gold); font-size: 18px; min-width: 36px; }
-    .hlr-banker { font-size: 11px; color: rgba(255,255,255,0.45); }
-    .hlr-limit { font-size: 11px; color: rgba(255,255,255,0.3); margin-left: auto; }
-    .hlr-results { display: flex; gap: 7px; flex-wrap: wrap; }
-    .hlr-chip { font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 6px; }
-    .hlr-chip.pos { background: rgba(22,163,74,0.2); color: #4ade80; }
-    .hlr-chip.neg { background: rgba(220,38,38,0.2); color: #f87171; }
-    .hlr-chip.zero { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.4); }
-    .btns-row { display: flex; gap: 12px; }
-    .new-game-btn { padding: 15px 32px; background: var(--gold); color: var(--dark); border: none; border-radius: 14px; font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 2px; cursor: pointer; }
+    /* mic */
+    .micbar{padding:8px 16px;background:#f0f4ff;border-bottom:1px solid #d0d9f0;display:flex;gap:8px;align-items:center}
+    .micbtn{flex:1;padding:9px;background:#1e40af;color:white;border:none;border-radius:9px;font-family:'DM Sans',sans-serif;font-weight:600;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+    .micbtn.on{background:#dc2626}
+    .micfb{font-size:11px;color:var(--muted);padding:5px 8px;background:#f7f3ea;border-radius:7px;flex:2;min-height:28px}
 
-    /* LOADING */
-    .loading-overlay { position: fixed; inset: 0; background: var(--dark); display: flex; align-items: center; justify-content: center; z-index: 999; flex-direction: column; gap: 16px; }
-    .loading-spinner { width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.1); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; }
-    .loading-text { color: rgba(255,255,255,0.5); font-size: 13px; letter-spacing: 2px; }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    /* foot */
+    .hfoot{padding:12px 16px}
+    .lbtn{width:100%;padding:13px;background:var(--green);color:white;border:none;border-radius:9px;font-family:'Bebas Neue',sans-serif;font-size:19px;letter-spacing:1.5px;cursor:pointer}
+    .lbtn:disabled{opacity:0.35;font-size:13px;letter-spacing:0.5px;font-family:'DM Sans',sans-serif;font-weight:600}
+    .ubtn{width:100%;padding:10px;background:transparent;border:1.5px solid var(--border);border-radius:9px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer}
 
-    /* SYNC INDICATOR */
-    .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gold); display: inline-block; margin-left: 6px; animation: pulse 2s infinite; }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    /* ── SUMMARY ── */
+    #SM{display:none;flex-direction:column;align-items:center;padding:36px 16px 60px;gap:20px;min-height:100vh;overflow-y:auto;background:linear-gradient(160deg,var(--dark) 0%,#1a3d24 70%)}
+    #SM.on{display:flex}
+    .smtitle{font-family:'Bebas Neue',sans-serif;font-size:48px;color:var(--gold);letter-spacing:4px}
+    .smcard{width:100%;max-width:440px;background:var(--cream);border-radius:18px;overflow:hidden}
+    .smrow{display:flex;align-items:center;padding:15px 20px;border-bottom:1px solid var(--border);gap:12px}
+    .smrow:last-child{border-bottom:none}
+    .smrk{font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--muted);width:26px}
+    .smrk.g{color:var(--gold)}
+    .smnm{flex:1;font-weight:600;font-size:16px}
+    .smam{font-family:'Bebas Neue',sans-serif;font-size:28px}
+    .smam.pos{color:var(--win)}.smam.neg{color:var(--loss)}
+    .log{width:100%;max-width:440px}
+    .logt{font-family:'Bebas Neue',sans-serif;color:rgba(255,255,255,0.4);font-size:15px;letter-spacing:2px;text-align:center;margin-bottom:6px}
+    .logr{background:rgba(255,255,255,0.06);border-radius:9px;padding:9px 12px;margin-bottom:5px}
+    .logrh{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+    .lrh{font-family:'Bebas Neue',sans-serif;color:var(--gold);font-size:17px;min-width:32px}
+    .lrb{font-size:11px;color:rgba(255,255,255,0.4)}
+    .lrl{font-size:11px;color:rgba(255,255,255,0.25);margin-left:auto}
+    .lrres{display:flex;gap:6px;flex-wrap:wrap}
+    .lrc{font-size:11px;font-weight:600;padding:2px 7px;border-radius:5px}
+    .lrc.pos{background:rgba(22,163,74,0.2);color:#4ade80}
+    .lrc.neg{background:rgba(220,38,38,0.2);color:#f87171}
+    .lrc.zero{background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.35)}
+    .smbrow{display:flex;gap:10px}
+    .smbtn{padding:13px 28px;background:var(--gold);color:var(--dark);border:none;border-radius:12px;font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;cursor:pointer}
   </style>
 </head>
 <body>
 
-  <div class="loading-overlay" id="loading">
-    <div class="loading-spinner"></div>
-    <div class="loading-text">LOADING...</div>
+<!-- SETUP -->
+<div id="S" class="on">
+  <div class="logo">
+    <div class="logo-i">⛳</div>
+    <div class="logo-t">BANKER</div>
   </div>
-
-  <!-- LOBBY -->
-  <div id="lobby-screen">
+  <div class="card">
     <div>
-      <div class="logo-icon">⛳</div>
-      <div class="logo-title">BANKER</div>
-      <div class="logo-sub">Golf Wagering Scorecard</div>
+      <label class="flbl">Number of Players</label>
+      <div class="pills" id="cpills"></div>
     </div>
-    <div class="lobby-card">
-      <!-- New Game Setup -->
-      <div id="new-game-setup">
-        <label class="field-label">New Game — Number of Players</label>
-        <div class="count-pills" id="count-pills"></div>
-        <div style="margin-top:14px">
-          <label class="field-label">Player Names</label>
-          <div id="name-inputs"></div>
-        </div>
-        <div class="setup-note" style="margin-top:4px">💰 Banker sets limits · 2× press or 3× in air · Banker re-presses at same multiplier</div>
-        <button class="lobby-btn primary" id="start-btn" onclick="startGame()" disabled style="margin-top:14px">Start Game →</button>
-      </div>
+    <div>
+      <label class="flbl">Player Names &amp; Handicap Index</label>
+      <div id="ninputs"></div>
+    </div>
+    <button class="sbtn" id="teeup" disabled>Tee It Up →</button>
+  </div>
+</div>
 
-      <div class="lobby-divider">— OR JOIN EXISTING GAME —</div>
-
-      <!-- Join Game -->
-      <div>
-        <label class="field-label">Enter Game Code</label>
-        <div class="join-row">
-          <input type="text" class="join-input" id="join-code" placeholder="XXXX" maxlength="4" oninput="this.value=this.value.toUpperCase()" />
-          <button class="join-btn" onclick="joinGame()">Join</button>
-        </div>
-      </div>
+<!-- GAME -->
+<div id="G">
+  <div class="topbar">
+    <span class="gtitle">⛳ BANKER</span>
+    <div class="tbbtns">
+      <button class="tbtn blue" id="askbtn">🎤 Ask</button>
+      <button class="tbtn gold" id="sumbtn">Summary</button>
     </div>
   </div>
-
-  <!-- GAME -->
-  <div id="game-screen">
-    <div id="spectator-banner" class="spectator-banner" style="display:none">👁 SPECTATOR MODE — Live updates <span class="sync-dot"></span></div>
-    <div class="game-top-bar">
-      <div>
-        <span class="game-title">⛳ BANKER</span>
-        <span id="code-display" style="font-size:11px;color:rgba(255,255,255,0.4);letter-spacing:2px;margin-left:8px;font-weight:600"></span>
-      </div>
-      <button class="summary-link" onclick="showSummary()">Final Summary</button>
-    </div>
-    <div class="game-scroll">
-      <div id="leaderboard"></div>
-      <div class="hole-nav" id="hole-nav"></div>
-      <div id="hole-card-container"></div>
-    </div>
+  <div class="gscroll">
+    <div id="lb"></div>
+    <div class="hnav" id="hnav"></div>
+    <div id="hcard"></div>
   </div>
+</div>
 
-  <!-- SUMMARY -->
-  <div id="summary-screen">
-    <div class="summary-title">🏆 Final Scores</div>
-    <div id="summary-card" class="summary-card"></div>
-    <div id="hole-log" class="hole-log"></div>
-    <div class="btns-row">
-      <button class="new-game-btn" onclick="showGame()">← Back</button>
-      <button class="new-game-btn" onclick="newGame()">New Game</button>
-    </div>
+<!-- SUMMARY -->
+<div id="SM">
+  <div class="smtitle">🏆 Final Scores</div>
+  <div id="smcard" class="smcard"></div>
+  <div id="smlog" class="log"></div>
+  <div class="smbrow">
+    <button class="smbtn" id="backbtn">← Back</button>
+    <button class="smbtn" id="newbtn">New Game</button>
   </div>
+</div>
 
-<!-- Firebase -->
 <script>
-// Global dispatcher - defined immediately so onclick handlers always work
-function _call(fn) {
-  var args = Array.prototype.slice.call(arguments, 1);
-  return function() {
-    if (typeof window[fn] === 'function') window[fn].apply(null, args);
-    else setTimeout(function(){ if(typeof window[fn]==='function') window[fn].apply(null,args); }, 500);
-  };
-}
-</script>
-<script type="module" id="main-module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, get, onValue, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+// ── Constants ────────────────────────────────────────────────────────────────
+var HOLES = 18;
+var BETS = [5,10,15,20,25,30,40,50,75,100];
+var COURSE = {rating:72.6, slope:137, par:72, holes:[
+  {h:1,par:4,si:13},{h:2,par:5,si:1},{h:3,par:4,si:9},{h:4,par:4,si:11},
+  {h:5,par:3,si:7},{h:6,par:5,si:3},{h:7,par:3,si:17},{h:8,par:4,si:15},
+  {h:9,par:4,si:5},{h:10,par:4,si:6},{h:11,par:3,si:16},{h:12,par:4,si:10},
+  {h:13,par:4,si:8},{h:14,par:5,si:2},{h:15,par:5,si:14},{h:16,par:4,si:18},
+  {h:17,par:3,si:12},{h:18,par:4,si:4}
+]};
 
-const firebaseConfig = {
-  apiKey: "AIzaSyDcU1JyPdnQRpACW9TqKCf6IsO1phMxcXo",
-  authDomain: "banker-65da3.firebaseapp.com",
-  databaseURL: "https://banker-65da3-default-rtdb.firebaseio.com",
-  projectId: "banker-65da3",
-  storageBucket: "banker-65da3.firebasestorage.app",
-  messagingSenderId: "161371273359",
-  appId: "1:161371273359:web:d3fd5f25d56f34abd098fa"
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
-
-const HOLES = 18;
-const BET_OPTIONS = [5, 10, 15, 20, 25, 30, 40, 50, 75, 100];
-
-let state = {
-  players: [],
-  playerCount: 3,
-  holes: [],
-  activeHole: 0,
-  gameCode: null,
-  isSpectator: false,
-};
-
-let unsubscribe = null;
+// ── State ────────────────────────────────────────────────────────────────────
+var G = {players:[], count:3, holes:[], active:0, hdcp:{}, chdcp:{}};
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-function fmt(val) {
-  if (val === 0) return 'E';
-  return (val > 0 ? '+$' : '-$') + Math.abs(val);
-}
-function esc(str) { return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+function fmt(v){ return v===0?'E':(v>0?'+$':'-$')+Math.abs(v); }
 
-function getMultiplier(press) {
-  let playerMult = 1;
-  if (press.player === 'press') playerMult = 2;
-  if (press.player === 'triple') playerMult = 3;
-  let m = playerMult;
-  if (press.banker) m *= playerMult;
-  return m;
-}
-function getFinalWager(baseWager, press) { return baseWager * getMultiplier(press); }
-
-function generateCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  return Array.from({length:4}, () => chars[Math.floor(Math.random()*chars.length)]).join('');
+function courseHdcp(idx){
+  return Math.round(idx*(COURSE.slope/113)+(COURSE.rating-COURSE.par));
 }
 
-function initHoles(players) {
-  return Array.from({ length: HOLES }, (_, i) => ({
-    hole: i + 1, banker: null, limitMin: 5, limitMax: 50,
-    wagers: Object.fromEntries(players.map(p => [p, null])),
-    press: Object.fromEntries(players.map(p => [p, { player: null, banker: false }])),
-    strokes: Object.fromEntries(players.map(p => [p, ''])),
-    locked: false,
-  }));
+function strokes(player, hi){
+  var ch=G.chdcp[player]||0, si=COURSE.holes[hi].si, s=0;
+  if(ch>=si) s++;
+  if(ch>=18+si) s++;
+  return s;
 }
 
-function calcHoleResult(hole) {
-  if (!hole.banker) return null;
-  const bankerStrokes = Number(hole.strokes[hole.banker]);
-  if (!bankerStrokes) return null;
-  const results = {};
-  let bankerNet = 0;
-  state.players.forEach(p => {
-    if (p === hole.banker) return;
-    const pStrokes = Number(hole.strokes[p]);
-    if (!pStrokes || hole.wagers[p] == null) return;
-    const finalWager = getFinalWager(hole.wagers[p], hole.press[p]);
-    const diff = bankerStrokes - pStrokes;
-    let amount = diff > 0 ? finalWager : diff < 0 ? -finalWager : 0;
-    results[p] = amount; bankerNet -= amount;
-  });
-  results[hole.banker] = bankerNet;
-  return results;
+function mlt(press){
+  var pm=press.player==='press'?2:press.player==='triple'?3:1;
+  return press.banker?pm*pm:pm;
 }
 
-function calcTotals() {
-  const totals = Object.fromEntries(state.players.map(p => [p, 0]));
-  state.holes.forEach(hole => {
-    if (!hole.locked) return;
-    const res = calcHoleResult(hole);
-    if (!res) return;
-    state.players.forEach(p => { totals[p] += res[p] ?? 0; });
-  });
-  return totals;
-}
+function fw(base, press){ return base*mlt(press); }
 
-// ── Firebase sync ─────────────────────────────────────────────────────────────
-async function saveToFirebase() {
-  if (!state.gameCode) return;
-  const gameRef = ref(db, `games/${state.gameCode}`);
-  await set(gameRef, { players: state.players, holes: state.holes, activeHole: state.activeHole, updatedAt: Date.now() });
-}
-
-function subscribeToGame(code) {
-  if (unsubscribe) unsubscribe();
-  const gameRef = ref(db, `games/${code}`);
-  unsubscribe = onValue(gameRef, (snapshot) => {
-    const data = snapshot.val();
-    if (!data) return;
-    state.players = data.players || [];
-    state.holes = data.holes || [];
-    if (state.isSpectator) {
-      state.activeHole = data.activeHole ?? 0;
+function initHoles(players){
+  var arr=[];
+  for(var i=0;i<HOLES;i++){
+    var w={},pr={},sc={};
+    for(var j=0;j<players.length;j++){
+      w[players[j]]=null;
+      pr[players[j]]={player:null,banker:false};
+      sc[players[j]]='';
     }
-    renderGame();
-  });
-}
-
-// ── Setup ─────────────────────────────────────────────────────────────────────
-function setCount(n) {
-  state.playerCount = n;
-  document.querySelectorAll('#count-pills .pill').forEach(b => {
-    b.classList.toggle('active', parseInt(b.textContent) === n);
-  });
-  renderNameInputs();
-}
-
-function renderNameInputs() {
-  const container = document.getElementById('name-inputs');
-  const existing = [...container.querySelectorAll('input')].map(i => i.value);
-  container.innerHTML = '';
-  for (let i = 0; i < state.playerCount; i++) {
-    const inp = document.createElement('input');
-    inp.type = 'text'; inp.className = 'name-input';
-    inp.placeholder = `Player ${i + 1}`; inp.value = existing[i] || '';
-    inp.style.fontSize = '16px';
-    inp.addEventListener('input', checkSetupValid);
-    container.appendChild(inp);
+    arr.push({hole:i+1,banker:null,lmin:5,lmax:50,wagers:w,press:pr,strokes:sc,locked:false});
   }
-  checkSetupValid();
+  return arr;
 }
 
-function checkSetupValid() {
-  const valid = [...document.querySelectorAll('.name-input')].every(i => i.value.trim().length > 0);
-  document.getElementById('start-btn').disabled = !valid;
+function calcResult(hole){
+  if(!hole.banker) return null;
+  var hi=hole.hole-1;
+  var bs=Number(hole.strokes[hole.banker]);
+  if(!bs) return null;
+  var bnet=bs-strokes(hole.banker,hi);
+  var res={},bn=0;
+  for(var i=0;i<G.players.length;i++){
+    var p=G.players[i];
+    if(p===hole.banker) continue;
+    var ps=Number(hole.strokes[p]);
+    if(!ps||hole.wagers[p]==null) continue;
+    var pnet=ps-strokes(p,hi);
+    var wager=fw(hole.wagers[p],hole.press[p]);
+    var diff=bnet-pnet;
+    var amt=diff>0?wager:diff<0?-wager:0;
+    res[p]=amt; bn-=amt;
+  }
+  res[hole.banker]=bn;
+  return res;
 }
 
-async function startGame() {
-  state.players = [...document.querySelectorAll('.name-input')].map(i => i.value.trim());
-  state.holes = initHoles(state.players);
-  state.activeHole = 0;
-  state.isSpectator = false;
-  state.gameCode = generateCode();
-  await saveToFirebase();
-  subscribeToGame(state.gameCode);
-  document.getElementById('spectator-banner').style.display = 'none';
-  document.getElementById('code-display').textContent = state.gameCode;
-  showGame(); renderGame();
+function calcTotals(){
+  var t={};
+  for(var i=0;i<G.players.length;i++) t[G.players[i]]=0;
+  for(var i=0;i<G.holes.length;i++){
+    var h=G.holes[i]; if(!h.locked) continue;
+    var r=calcResult(h); if(!r) continue;
+    for(var j=0;j<G.players.length;j++) t[G.players[j]]+=(r[G.players[j]]||0);
+  }
+  return t;
 }
 
-async function joinGame() {
-  const code = document.getElementById('join-code').value.trim().toUpperCase();
-  if (code.length !== 4) return alert('Enter a 4-letter game code');
-  const gameRef = ref(db, `games/${code}`);
-  const snapshot = await get(gameRef);
-  if (!snapshot.exists()) return alert('Game not found. Check the code and try again.');
-  const data = snapshot.val();
-  state.players = data.players || [];
-  state.holes = data.holes || [];
-  state.activeHole = data.activeHole ?? 0;
-  state.gameCode = code;
-  state.isSpectator = true;
-  subscribeToGame(code);
-  document.getElementById('spectator-banner').style.display = 'block';
-  document.getElementById('code-display').textContent = code;
-  showGame(); renderGame();
+// ── Setup ────────────────────────────────────────────────────────────────────
+function setCount(n){
+  G.count=n;
+  var btns=document.querySelectorAll('#cpills .pill');
+  for(var i=0;i<btns.length;i++) btns[i].classList.toggle('on',parseInt(btns[i].dataset.n)===n);
+  buildInputs();
 }
 
-// ── Screens ───────────────────────────────────────────────────────────────────
-function showScreen(id) {
-  ['lobby-screen','game-screen','summary-screen'].forEach(s => {
-    document.getElementById(s).classList.toggle('active', s === id);
-  });
-}
-function showGame() { showScreen('game-screen'); renderGame(); }
-function newGame() { if(unsubscribe) unsubscribe(); showScreen('lobby-screen'); }
-function showSummary() { showScreen('summary-screen'); renderSummary(); }
-
-// expose to global scope for onclick handlers
-window.showGame = showGame;
-window.newGame = newGame;
-window.showSummary = showSummary;
-window.joinGame = joinGame;
-window.startGame = startGame;
-window.setCount = setCount;
-
-// ── Game Render ───────────────────────────────────────────────────────────────
-function renderGame() { renderLeaderboard(); renderHoleNav(); renderHoleCard(); }
-
-function renderLeaderboard() {
-  const totals = calcTotals();
-  const sorted = [...state.players].sort((a, b) => totals[b] - totals[a]);
-  const holesPlayed = state.holes.filter(h => h.locked).length;
-  document.getElementById('leaderboard').innerHTML = `
-    <div class="leaderboard">
-      <div class="lb-header"><span class="lb-title">LEADERBOARD</span><span class="lb-sub">${holesPlayed}/18 holes</span></div>
-      ${sorted.map((p, i) => {
-        const val = totals[p];
-        return `<div class="lb-row ${i===0&&val>0?'lb-leader':''}">
-          <span class="lb-pos">${i+1}</span><span class="lb-name">${p}</span>
-          <span class="lb-amount ${val>0?'pos':val<0?'neg':''}">${fmt(val)}</span></div>`;
-      }).join('')}
-    </div>`;
+function buildInputs(){
+  var c=document.getElementById('ninputs');
+  var oldn=c.querySelectorAll('.ni'), oldh=c.querySelectorAll('.hi');
+  var en=[],eh=[];
+  for(var i=0;i<oldn.length;i++) en.push(oldn[i].value);
+  for(var i=0;i<oldh.length;i++) eh.push(oldh[i].value);
+  c.innerHTML='';
+  for(var i=0;i<G.count;i++){
+    var row=document.createElement('div');
+    row.className='prow';
+    var ni=document.createElement('input');
+    ni.type='text'; ni.className='ni'; ni.placeholder='Player '+(i+1);
+    ni.value=en[i]||''; ni.autocomplete='off';
+    ni.addEventListener('input',chkValid);
+    var hi=document.createElement('input');
+    hi.type='number'; hi.className='hi'; hi.placeholder='Hdcp';
+    hi.min='0'; hi.max='54'; hi.step='0.1';
+    hi.value=eh[i]||'';
+    hi.addEventListener('input',chkValid);
+    row.appendChild(ni); row.appendChild(hi);
+    c.appendChild(row);
+  }
+  chkValid();
 }
 
-function renderHoleNav() {
-  document.getElementById('hole-nav').innerHTML = state.holes.map((h, i) =>
-    `<button class="hn-btn ${h.locked?'done':''} ${i===state.activeHole?'cur':''}" data-action="goHole" data-val="${i}">${i+1}</button>`
-  ).join('');
+function chkValid(){
+  var ns=document.querySelectorAll('.ni'), hs=document.querySelectorAll('.hi');
+  var ok=true;
+  for(var i=0;i<ns.length;i++) if(!ns[i].value.trim()) ok=false;
+  for(var i=0;i<hs.length;i++) if(hs[i].value==='') ok=false;
+  document.getElementById('teeup').disabled=!ok;
 }
-window.goHole = function(i) {
-  state.activeHole = i; renderGame();
-  document.getElementById('hole-card-container').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-};
 
-// Event delegation - handles all dynamic button clicks reliably
-document.getElementById('game-screen').addEventListener('click', function(e) {
-  const btn = e.target.closest('[data-action]');
-  if (!btn) return;
-  const action = btn.dataset.action;
-  const val = btn.dataset.val;
-  const player = btn.dataset.player;
-  if (action === 'setBanker') window.setBanker(player);
-  else if (action === 'setLimit') window.setLimit(val.split(',')[0], Number(val.split(',')[1]));
-  else if (action === 'setWager') window.setWager(player, Number(val));
-  else if (action === 'togglePress') window.togglePress(player, val);
-  else if (action === 'toggleBankerPress') window.toggleBankerPress(player);
-  else if (action === 'lockHole') window.lockHole();
-  else if (action === 'unlockHole') window.unlockHole();
-  else if (action === 'goHole') window.goHole(Number(val));
+function startGame(){
+  var ns=document.querySelectorAll('.ni'), hs=document.querySelectorAll('.hi');
+  G.players=[]; G.hdcp={}; G.chdcp={};
+  for(var i=0;i<ns.length;i++){
+    var p=ns[i].value.trim();
+    G.players.push(p);
+    var idx=parseFloat(hs[i].value)||0;
+    G.hdcp[p]=idx; G.chdcp[p]=courseHdcp(idx);
+  }
+  G.holes=initHoles(G.players); G.active=0;
+  show('G'); renderGame();
+}
+
+// ── Screens ──────────────────────────────────────────────────────────────────
+function show(id){
+  ['S','G','SM'].forEach(function(s){ document.getElementById(s).classList.toggle('on',s===id); });
+}
+
+// ── Render ───────────────────────────────────────────────────────────────────
+function renderGame(){ renderLB(); renderNav(); renderCard(); }
+
+function renderLB(){
+  var t=calcTotals();
+  var sorted=G.players.slice().sort(function(a,b){return t[b]-t[a];});
+  var hp=G.holes.filter(function(h){return h.locked;}).length;
+  var h='<div class="lb"><div class="lbh"><span class="lbt">LEADERBOARD</span><span class="lbs">'+hp+'/18</span></div>';
+  for(var i=0;i<sorted.length;i++){
+    var p=sorted[i],v=t[p],ch=G.chdcp[p]||0;
+    h+='<div class="lbr'+(i===0&&v>0?' lead':'')+'"><span class="lbp">'+(i+1)+'</span>';
+    h+='<span class="lbn">'+p+' <span style="font-size:10px;color:var(--muted)">CH'+ch+'</span></span>';
+    h+='<span class="lba'+(v>0?' pos':v<0?' neg':'')+'">'+fmt(v)+'</span></div>';
+  }
+  h+='</div>';
+  document.getElementById('lb').innerHTML=h;
+}
+
+function renderNav(){
+  var h='';
+  for(var i=0;i<G.holes.length;i++){
+    var hole=G.holes[i];
+    h+='<button class="hn'+(hole.locked?' done':'')+(i===G.active?' cur':'')+'" data-hi="'+i+'">'+(i+1)+'</button>';
+  }
+  document.getElementById('hnav').innerHTML=h;
+}
+
+function renderCard(){
+  var hole=G.holes[G.active], hi=G.active;
+  var locked=hole.locked;
+  var result=locked?calcResult(hole):null;
+  var bset=!!hole.banker;
+  var vw=BETS.filter(function(v){return v>=hole.lmin&&v<=hole.lmax;});
+  var nonB=G.players.filter(function(p){return p!==hole.banker;});
+  var allW=bset&&nonB.every(function(p){return hole.wagers[p]!=null;});
+  var allS=bset&&G.players.every(function(p){return String(hole.strokes[p]).trim()!=='';});
+  var ready=allW&&allS;
+  var hd=COURSE.holes[hi];
+  var lockLbl=!bset?'Select Banker':!allW?'All Players Must Wager':!allS?'Enter All Scores':'Lock Hole '+hole.hole;
+
+  var h='<div class="hcard'+(locked?' locked':'')+'"><div class="hhdr"><div><span class="hlbl">HOLE</span><span class="hnum">'+hole.hole+'</span></div>';
+  h+='<div class="hinfo">PAR '+hd.par+'<br>SI '+hd.si+'</div>';
+  h+='<div class="bbadge"><span>🏦</span><span class="bnm">'+(hole.banker||'—')+'</span></div></div>';
+
+  // Mic bar (only when not locked)
+  if(!locked){
+    h+='<div class="micbar"><button class="micbtn" id="hmic" data-action="hmic">🎤 Narrate Hole</button><div class="micfb" id="micfb">Tap mic and narrate the whole hole</div></div>';
+  }
+
+  // Step 1
+  if(!locked){
+    h+='<div class="sec"><span class="slbl">① WHO\'S THE BANKER?</span><div class="bpills">';
+    for(var i=0;i<G.players.length;i++){
+      var p=G.players[i];
+      h+='<button class="bpill'+(hole.banker===p?' on':'')+'" data-action="banker" data-p="'+p+'">'+p+'</button>';
+    }
+    h+='</div></div>';
+  }
+
+  // Step 2
+  if(bset&&!locked){
+    h+='<div class="sec"><span class="slbl">② BANKER SETS LIMITS</span><div class="limrow">';
+    h+='<div class="limf"><label class="liml">MIN</label><div class="lpills">';
+    for(var i=0;i<BETS.length;i++){var v=BETS[i];if(v>hole.lmax)continue;h+='<button class="lp'+(hole.lmin===v?' on':'')+'" data-action="lmin" data-v="'+v+'">$'+v+'</button>';}
+    h+='</div></div><div class="limdiv">to</div><div class="limf"><label class="liml">MAX</label><div class="lpills">';
+    for(var i=0;i<BETS.length;i++){var v=BETS[i];if(v<hole.lmin)continue;h+='<button class="lp'+(hole.lmax===v?' on':'')+'" data-action="lmax" data-v="'+v+'">$'+v+'</button>';}
+    h+='</div></div></div>';
+    if(vw.length>0) h+='<div class="limsum">Allowed: '+vw.map(function(v){return'$'+v;}).join(', ')+' · Max with 3×+bank: $'+(hole.lmax*9)+'</div>';
+    h+='</div>';
+  }
+
+  // Step 3
+  if(bset&&!locked){
+    h+='<div class="sec"><span class="slbl">③ PLAYER WAGERS</span>';
+    for(var i=0;i<nonB.length;i++){
+      var p=nonB[i];
+      h+='<div class="wrow"><span class="wnm">'+p+'</span><div class="wpills">';
+      for(var j=0;j<vw.length;j++){var v=vw[j];h+='<button class="wp'+(hole.wagers[p]===v?' on':'')+'" data-action="wager" data-p="'+p+'" data-v="'+v+'">$'+v+'</button>';}
+      h+='</div></div>';
+    }
+    h+='</div>';
+  }
+
+  // Step 4
+  if(bset){
+    h+='<div class="sec"><span class="slbl">'+(locked?'SCORES & RESULTS':'④ SCORES & PRESS')+'</span><div class="prows">';
+    for(var i=0;i<G.players.length;i++){
+      var p=G.players[i], ib=p===hole.banker;
+      var pr=hole.press[p]||{player:null,banker:false};
+      var bw=hole.wagers[p], fwv=bw!=null?fw(bw,pr):null, m=mlt(pr);
+      var rv=result?(result[p]||0):null;
+      var cc=rv>0?'win':rv<0?'loss':'push';
+      var stk=strokes(p,hi), gross=Number(hole.strokes[p]), net=gross?gross-stk:null;
+
+      h+='<div class="prow2'+(ib?' ib':'')+'"><div class="ptop"><div class="pinfo"><span class="pname">'+p+'</span>';
+      if(ib) h+='<span class="btag">BANKER</span>';
+      if(!ib&&bw!=null) h+='<span class="wtag">'+(m>1?'base $'+bw+' → $'+fwv:'$'+bw)+'</span>';
+      h+='</div><div class="iarea">';
+      if(stk>0) h+='<span class="sbadge">+'+stk+'</span>';
+      h+='<input type="number" inputmode="numeric" pattern="[0-9]*" min="1" max="15" class="sinp"'+(locked?' disabled':'')+' value="'+hole.strokes[p]+'" placeholder="—" data-action="score" data-p="'+p+'"/>';
+      if(net&&stk>0) h+='<span class="nbadge">net '+net+'</span>';
+      if(locked&&rv!=null) h+='<div class="rchip '+cc+'">'+fmt(rv)+'</div>';
+      h+='</div></div>';
+
+      if(!ib&&!locked&&bw!=null){
+        h+='<div class="pressrow"><span class="presslbl">PRESS:</span>';
+        h+='<button class="prbtn'+(pr.player==='press'?' p2':'')+'" data-action="press" data-p="'+p+'" data-pv="press">2× Press</button>';
+        h+='<button class="prbtn'+(pr.player==='triple'?' p3':'')+'" data-action="press" data-p="'+p+'" data-pv="triple">3× In Air</button>';
+        h+='<button class="prbtn'+(pr.banker?' pb':'')+'" data-action="bpress" data-p="'+p+'">🏦 Press</button>';
+        if(fwv&&m>1) h+='<span class="fbet">$'+fwv+'</span>';
+        h+='</div>';
+      }
+      if(!ib&&locked&&bw!=null){
+        var pd=[pr.player==='press'?'2× pressed':pr.player==='triple'?'3× in air':null,pr.banker?'🏦 pressed':null].filter(Boolean).join(' + ');
+        if(pd) h+='<div class="pressrow"><span style="font-size:11px;color:var(--muted)">'+pd+' → $'+fwv+'</span></div>';
+      }
+      h+='</div>';
+    }
+    h+='</div></div>';
+  }
+
+  h+='<div class="hfoot">'+(locked?'<button class="ubtn" data-action="unlock">✏️ Edit Hole</button>':'<button class="lbtn"'+(ready?'':' disabled')+' data-action="lock">'+lockLbl+'</button>')+'</div></div>';
+  document.getElementById('hcard').innerHTML=h;
+}
+
+// ── Event Delegation ─────────────────────────────────────────────────────────
+document.addEventListener('click',function(e){
+  var el=e.target.closest('[data-action]'); if(!el) return;
+  var a=el.dataset.action, p=el.dataset.p, v=el.dataset.v, pv=el.dataset.pv;
+  var hole=G.holes[G.active];
+
+  if(a==='banker'){
+    hole.banker=p;
+    for(var i=0;i<G.players.length;i++){hole.wagers[G.players[i]]=null;hole.press[G.players[i]]={player:null,banker:false};}
+    renderGame();
+  } else if(a==='lmin'){
+    hole.lmin=Number(v); if(hole.lmax<hole.lmin) hole.lmax=hole.lmin;
+    G.players.forEach(function(pl){if(hole.wagers[pl]!=null&&(hole.wagers[pl]<hole.lmin||hole.wagers[pl]>hole.lmax)){hole.wagers[pl]=null;hole.press[pl]={player:null,banker:false};}});
+    renderGame();
+  } else if(a==='lmax'){
+    hole.lmax=Number(v); if(hole.lmin>hole.lmax) hole.lmin=hole.lmax;
+    G.players.forEach(function(pl){if(hole.wagers[pl]!=null&&(hole.wagers[pl]<hole.lmin||hole.wagers[pl]>hole.lmax)){hole.wagers[pl]=null;hole.press[pl]={player:null,banker:false};}});
+    renderGame();
+  } else if(a==='wager'){
+    hole.wagers[p]=Number(v); hole.press[p]={player:null,banker:false};
+    renderGame();
+  } else if(a==='press'){
+    hole.press[p].player=hole.press[p].player===pv?null:pv; renderGame();
+  } else if(a==='bpress'){
+    hole.press[p].banker=!hole.press[p].banker; renderGame();
+  } else if(a==='lock'){
+    hole.locked=true;
+    if(G.active<HOLES-1) G.active++;
+    renderGame();
+    setTimeout(function(){var nav=document.getElementById('hnav');if(nav.children[G.active])nav.children[G.active].scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});},100);
+  } else if(a==='unlock'){
+    hole.locked=false; renderGame();
+  } else if(a==='hmic'){
+    startHoleMic();
+  }
 });
 
-function renderHoleCard() {
-  const hole = state.holes[state.activeHole];
-  if (!hole) return;
-  const isLocked = hole.locked;
-  const isSpectator = state.isSpectator;
-  const result = isLocked ? calcHoleResult(hole) : null;
-  const bankerSet = !!hole.banker;
-  const validWagers = BET_OPTIONS.filter(v => v >= hole.limitMin && v <= hole.limitMax);
-  const nonBankers = state.players.filter(p => p !== hole.banker);
-  const allWagersDeclared = bankerSet && nonBankers.every(p => hole.wagers[p] != null);
-  const allScoresEntered = bankerSet && state.players.every(p => String(hole.strokes[p]).trim() !== '');
-  const readyToLock = allWagersDeclared && allScoresEntered;
+document.getElementById('hnav').addEventListener('click',function(e){
+  var b=e.target.closest('.hn'); if(!b) return;
+  G.active=parseInt(b.dataset.hi); renderGame();
+});
 
-  let lockLabel = !bankerSet ? 'Select a Banker First'
-    : !allWagersDeclared ? 'All Players Must Declare Wager'
-    : !allScoresEntered ? 'Enter All Scores'
-    : `Lock Hole ${hole.hole}`;
-
-  let html = `<div class="hole-card ${isLocked?'locked':''}">
-    <div class="hole-header">
-      <div><span class="hole-label">HOLE</span><span class="hole-num-big">${hole.hole}</span></div>
-      <div class="banker-badge"><span style="font-size:16px">🏦</span><span class="banker-name">${hole.banker??'Select Banker'}</span></div>
-    </div>`;
-
-  if (!isSpectator) {
-    // ① Banker selector
-    if (!isLocked) {
-      html += `<div class="section"><span class="section-label">① WHO'S THE BANKER?</span>
-        <div class="bs-pills">${state.players.map(p =>
-          `<button class="bs-pill ${hole.banker===p?'active':''}" data-action="setBanker" data-player="${esc(p)}">${p}</button>`
-        ).join('')}</div></div>`;
-    }
-
-    // ② Limits
-    if (bankerSet && !isLocked) {
-      html += `<div class="section"><span class="section-label">② BANKER SETS LIMITS</span>
-        <div class="limit-row">
-          <div class="limit-field"><label class="limit-label">MIN</label>
-            <div class="limit-pills">${BET_OPTIONS.filter(v=>v<=hole.limitMax).map(v=>
-              `<button class="lp ${hole.limitMin===v?'active':''}" data-action="setLimit" data-val="min,${v}">$${v}</button>`
-            ).join('')}</div>
-          </div>
-          <div class="limit-divider">to</div>
-          <div class="limit-field"><label class="limit-label">MAX</label>
-            <div class="limit-pills">${BET_OPTIONS.filter(v=>v>=hole.limitMin).map(v=>
-              `<button class="lp ${hole.limitMax===v?'active':''}" data-action="setLimit" data-val="max,${v}">$${v}</button>`
-            ).join('')}</div>
-          </div>
-        </div>
-        ${validWagers.length>0?`<div class="limit-summary">Allowed: ${validWagers.map(v=>`$${v}`).join(', ')} · Max with 3× + banker press: $${hole.limitMax*9}</div>`:''}
-      </div>`;
-    }
-
-    // ③ Wagers
-    if (bankerSet && !isLocked) {
-      html += `<div class="section"><span class="section-label">③ PLAYER WAGERS</span>
-        ${nonBankers.map(p => `
-          <div class="wager-row">
-            <span class="wager-name">${p}</span>
-            <div class="wager-pills">${validWagers.map(v =>
-              `<button class="wp ${hole.wagers[p]===v?'active':''}" data-action="setWager" data-player="${esc(p)}" data-val="${v}">$${v}</button>`
-            ).join('')}</div>
-          </div>`).join('')}
-      </div>`;
-    }
+document.addEventListener('input',function(e){
+  if(e.target.classList.contains('sinp')){
+    G.holes[G.active].strokes[e.target.dataset.p]=e.target.value;
+    renderLB();
+    var hole=G.holes[G.active];
+    var nonB=G.players.filter(function(p){return p!==hole.banker;});
+    var allW=!!hole.banker&&nonB.every(function(p){return hole.wagers[p]!=null;});
+    var allS=!!hole.banker&&G.players.every(function(p){return String(hole.strokes[p]).trim()!=='';});
+    var btn=document.querySelector('.lbtn');
+    if(btn){btn.disabled=!(allW&&allS);if(allW&&allS)btn.textContent='Lock Hole '+hole.hole;}
   }
+});
 
-  // ④ Scores + Press (or spectator view)
-  if (bankerSet || isSpectator) {
-    html += `<div class="section"><span class="section-label">${isLocked?'SCORES & RESULTS': isSpectator ? 'LIVE SCORES' : '④ SCORES & PRESS'}</span>
-      <div class="player-rows">`;
+// ── Voice: Hole Narration ────────────────────────────────────────────────────
+var hRec=null, hListen=false;
 
-    state.players.forEach(p => {
-      const resVal = result ? (result[p] ?? 0) : null;
-      const chipClass = resVal > 0 ? 'win' : resVal < 0 ? 'loss' : 'push';
-      const isBanker = p === hole.banker;
-      const press = hole.press[p] || { player: null, banker: false };
-      const baseWager = hole.wagers[p];
-      const finalWager = baseWager != null ? getFinalWager(baseWager, press) : null;
-      const mult = getMultiplier(press);
+function startHoleMic(){
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){alert('Voice not supported. Use Safari on iOS 14.5+.');return;}
+  if(hListen){if(hRec)hRec.stop();return;}
+  hRec=new SR(); hRec.lang='en-US'; hRec.interimResults=false; hRec.maxAlternatives=3;
+  var btn=document.getElementById('hmic'), fb=document.getElementById('micfb');
+  hRec.onstart=function(){hListen=true;if(btn){btn.classList.add('on');btn.textContent='🔴 Listening...';}if(fb)fb.textContent='Narrate the whole hole...';};
+  hRec.onresult=function(e){
+    var best='',bsc=-1;
+    for(var a=0;a<e.results[0].length;a++){var t=e.results[0][a].transcript.toLowerCase().trim(),s=scoreTx(t);if(s>bsc){bsc=s;best=t;}}
+    if(fb)fb.textContent='"'+best+'"';
+    parseNarration(best,fb);
+  };
+  hRec.onerror=function(er){if(fb)fb.textContent='Error: '+(er.error==='not-allowed'?'Mic blocked — check Safari settings':er.error);stopHMic();};
+  hRec.onend=function(){stopHMic();};
+  hRec.start();
+}
+function stopHMic(){hListen=false;var btn=document.getElementById('hmic');if(btn){btn.classList.remove('on');btn.textContent='🎤 Narrate Hole';}}
+function scoreTx(t){var s=0;for(var i=0;i<G.players.length;i++){if(t.indexOf(G.players[i].split(' ')[0].toLowerCase())>=0)s++;}return s;}
 
-      html += `<div class="player-row ${isBanker?'is-banker':''}">
-        <div class="player-top">
-          <div class="player-info">
-            <span class="player-name">${p}</span>
-            ${isBanker ? `<span class="banker-tag">BANKER</span>` : ''}
-            ${!isBanker && baseWager != null ? `<span class="wager-tag">${mult>1?'base $'+baseWager+' → $'+finalWager:'$'+baseWager}</span>` : ''}
-          </div>
-          <div class="inputs-area">
-            <input type="number" inputmode="numeric" pattern="[0-9]*" min="1" max="15"
-              class="score-input" ${isLocked||isSpectator?'disabled':''}
-              value="${hole.strokes[p]}" placeholder="—"
-              onchange="setStroke('${esc(p)}',this.value)"
-              oninput="setStroke('${esc(p)}',this.value)" />
-            ${isLocked && result!=null ? `<div class="result-chip ${chipClass}">${fmt(resVal)}</div>` : ''}
-          </div>
-        </div>`;
-
-      // Press buttons
-      if (!isBanker && !isLocked && !isSpectator && baseWager != null) {
-        const pPress = press.player;
-        const bPress = press.banker;
-        html += `<div class="press-row">
-          <span class="press-label">PRESS:</span>
-          <button class="press-btn ${pPress==='press'?'active-press':''}" data-action="togglePress" data-player="${esc(p)}" data-val="press">2× Press</button>
-          <button class="press-btn ${pPress==='triple'?'active-triple':''}" data-action="togglePress" data-player="${esc(p)}" data-val="triple">3× In Air</button>
-          <button class="press-btn ${bPress?'active-banker':''}" data-action="toggleBankerPress" data-player="${esc(p)}">🏦 Press</button>
-          ${finalWager != null && mult > 1 ? `<span class="final-bet">$${finalWager}</span>` : ''}
-        </div>`;
-      }
-
-      if (!isBanker && isLocked && baseWager != null) {
-        const pPress = press.player;
-        const bPress = press.banker;
-        const pressDesc = [pPress==='press'?'2× pressed':pPress==='triple'?'3× in air':null, bPress?'🏦 pressed':null].filter(Boolean).join(' + ');
-        if (pressDesc) html += `<div class="press-row"><span style="font-size:11px;color:var(--muted)">${pressDesc} → $${finalWager}</span></div>`;
-      }
-
-      html += `</div>`;
-    });
-
-    html += `</div></div>`;
-  }
-
-  // Footer
-  if (!isSpectator) {
-    html += `<div class="hole-footer">
-      ${!isLocked
-        ? `<button class="lock-btn" ${readyToLock?'':'disabled'} data-action="lockHole">${lockLabel}</button>`
-        : `<button class="unlock-btn" data-action="unlockHole">✏️ Edit Hole</button>`}
-    </div>`;
-  }
-
-  html += `</div>`;
-  document.getElementById('hole-card-container').innerHTML = html;
+function pmap(){
+  var m={};
+  for(var i=0;i<G.players.length;i++){var p=G.players[i];m[p.toLowerCase()]=p;m[p.split(' ')[0].toLowerCase()]=p;}
+  return m;
 }
 
-// ── Actions ───────────────────────────────────────────────────────────────────
-// Safety: ensure all action functions are available before any button is clicked
-window.safeCall = function(fn, ...args) {
-  if (typeof window[fn] === 'function') {
-    window[fn](...args);
+function parseNarration(t,fb){
+  var hole=G.holes[G.active], pm=pmap(), acts=[];
+
+  // Banker
+  var bm=t.match(/banker(?:\s+is)?\s+(\w+)|(\w+)\s+is\s+the\s+banker/);
+  if(bm){var nm=(bm[1]||bm[2]).toLowerCase();if(pm[nm]){hole.banker=pm[nm];G.players.forEach(function(p){hole.wagers[p]=null;hole.press[p]={player:null,banker:false};});acts.push('Banker: '+hole.banker);}}
+
+  // Limits
+  var lm=t.match(/limits?\s+(\d+)\s+(?:to|and)\s+(\d+)|(\d+)\s+to\s+(\d+)/);
+  if(lm){var mn=parseInt(lm[1]||lm[3]),mx=parseInt(lm[2]||lm[4]);if(mn&&mx&&mn<=mx){hole.lmin=BETS.reduce(function(a,b){return Math.abs(b-mn)<Math.abs(a-mn)?b:a;});hole.lmax=BETS.reduce(function(a,b){return Math.abs(b-mx)<Math.abs(a-mx)?b:a;});acts.push('Limits: $'+hole.lmin+'-$'+hole.lmax);}}
+
+  // Wagers & press per player
+  for(var nm in pm){
+    var p=pm[nm]; if(p===hole.banker) continue;
+    var esc=nm.replace(/[.+?^${}()|[\]\\]/g,'.');
+    // wager
+    var wm=t.match(new RegExp(esc+'\\s+(?:is\\s+)?(?:in\\s+)?(?:for\\s+|wager\\s+)?(\\d+)','i'));
+    if(wm&&hole.wagers[p]==null){var amt=parseInt(wm[1]);var vw=BETS.filter(function(v){return v>=hole.lmin&&v<=hole.lmax;});if(vw.length>0){var sn=vw.reduce(function(a,b){return Math.abs(b-amt)<Math.abs(a-amt)?b:a;});hole.wagers[p]=sn;acts.push(p+' $'+sn);}}
+    // triple
+    if(t.match(new RegExp(esc+'\\s+(?:triple|in\\s+the\\s+air|triples)','i'))){hole.press[p].player='triple';acts.push(p+' 3×');}
+    // press
+    else if(t.match(new RegExp(esc+'\\s+press(?:ed)?','i'))||t.match(new RegExp('pressed\\s+'+esc,'i'))){hole.press[p].player='press';acts.push(p+' 2×');}
+    // banker press
+    if(t.match(new RegExp('banker\\s+press(?:ed)?\\s+'+esc,'i'))||t.match(new RegExp(esc+'\\s+banker\\s+press','i'))){hole.press[p].banker=true;acts.push('Bank→'+p);}
+  }
+
+  // Scores
+  for(var nm in pm){
+    var p=pm[nm];
+    var esc=nm.replace(/[.+?^${}()|[\]\\]/g,'.');
+    var sm=t.match(new RegExp(esc+'\\s+(?:scores?|shot|got|made|had)?\\s*(\\d+)(?!\\s*(?:to|and))','i'));
+    if(sm){var sc=parseInt(sm[1]);if(sc>=1&&sc<=15){hole.strokes[p]=String(sc);acts.push(p+' '+sc);}}
+  }
+
+  // Lock
+  var shouldLock=/\block\s*(?:it|hole|up)?\b/.test(t);
+  renderGame();
+  if(acts.length>0){
+    var sum=acts.join(' · ');
+    if(shouldLock){
+      var nonB=G.players.filter(function(p){return p!==hole.banker;});
+      var allW=!!hole.banker&&nonB.every(function(p){return hole.wagers[p]!=null;});
+      var allS=!!hole.banker&&G.players.every(function(p){return String(hole.strokes[p]).trim()!=='';});
+      if(allW&&allS){hole.locked=true;if(G.active<HOLES-1)G.active++;renderGame();sum+=' 🔒';}
+      else sum+=' ⚠️ not ready to lock';
+    }
+    if(fb)fb.textContent='✓ '+sum;
   } else {
-    console.error('Function not ready:', fn);
+    if(fb)fb.textContent='⚠️ Try: "Banker is Dan, limits 10 to 50, Mike in for 20, Dan scores 4"';
   }
-};
-
-window.setBanker = function(player) {
-  const h = state.holes[state.activeHole];
-  h.banker = player;
-  h.wagers = Object.fromEntries(state.players.map(p => [p, null]));
-  h.press = Object.fromEntries(state.players.map(p => [p, { player: null, banker: false }]));
-  saveToFirebase(); renderGame();
-};
-
-window.setLimit = function(type, value) {
-  const h = state.holes[state.activeHole];
-  if (type === 'min') { h.limitMin = value; if (h.limitMax < value) h.limitMax = value; }
-  else { h.limitMax = value; if (h.limitMin > value) h.limitMin = value; }
-  state.players.forEach(p => {
-    if (h.wagers[p] != null && (h.wagers[p] < h.limitMin || h.wagers[p] > h.limitMax)) {
-      h.wagers[p] = null; h.press[p] = { player: null, banker: false };
-    }
-  });
-  saveToFirebase(); renderGame();
-};
-
-window.setWager = function(player, amount) {
-  const h = state.holes[state.activeHole];
-  h.wagers[player] = amount;
-  h.press[player] = { player: null, banker: false };
-  saveToFirebase(); renderGame();
-};
-
-window.togglePress = function(player, type) {
-  const h = state.holes[state.activeHole];
-  const current = h.press[player].player;
-  h.press[player].player = current === type ? null : type;
-  saveToFirebase(); renderGame();
-};
-
-window.toggleBankerPress = function(player) {
-  const h = state.holes[state.activeHole];
-  h.press[player].banker = !h.press[player].banker;
-  saveToFirebase(); renderGame();
-};
-
-window.setStroke = function(player, value) {
-  state.holes[state.activeHole].strokes[player] = value;
-  const h = state.holes[state.activeHole];
-  const nonBankers = state.players.filter(p => p !== h.banker);
-  const allWagersDeclared = !!h.banker && nonBankers.every(p => h.wagers[p] != null);
-  const allScoresEntered = !!h.banker && state.players.every(p => String(h.strokes[p]).trim() !== '');
-  const readyToLock = allWagersDeclared && allScoresEntered;
-  const btn = document.querySelector('.lock-btn');
-  if (btn) { btn.disabled = !readyToLock; if (readyToLock) btn.textContent = `Lock Hole ${h.hole}`; }
-  saveToFirebase();
-  renderLeaderboard();
-};
-
-window.lockHole = function() {
-  state.holes[state.activeHole].locked = true;
-  if (state.activeHole < HOLES - 1) state.activeHole++;
-  saveToFirebase(); renderGame();
-  setTimeout(() => {
-    const nav = document.getElementById('hole-nav');
-    if (nav.children[state.activeHole]) nav.children[state.activeHole].scrollIntoView({ behavior:'smooth', block:'nearest', inline:'center' });
-  }, 100);
-};
-
-window.unlockHole = function() {
-  state.holes[state.activeHole].locked = false;
-  saveToFirebase(); renderGame();
-};
-
-// ── Summary ───────────────────────────────────────────────────────────────────
-function renderSummary() {
-  const totals = calcTotals();
-  const sorted = [...state.players].sort((a, b) => totals[b] - totals[a]);
-  document.getElementById('summary-card').innerHTML = sorted.map((p, i) => {
-    const val = totals[p];
-    return `<div class="summary-player">
-      <span class="sp-rank ${i===0?'gold':''}">${i+1}</span>
-      <span class="sp-name">${p}</span>
-      <span class="sp-amount ${val>0?'pos':val<0?'neg':''}">${fmt(val)}</span>
-    </div>`;
-  }).join('');
-
-  document.getElementById('hole-log').innerHTML = `
-    <div class="hole-log-title">HOLE BY HOLE</div>
-    ${state.holes.filter(h=>h.locked).map(h => {
-      const res = calcHoleResult(h);
-      return `<div class="hole-log-row">
-        <div class="hlr-top">
-          <span class="hlr-hole">H${h.hole}</span>
-          <span class="hlr-banker">🏦 ${h.banker}</span>
-          <span class="hlr-limit">$${h.limitMin}–$${h.limitMax}</span>
-        </div>
-        <div class="hlr-results">
-          ${state.players.map(p => {
-            const v = res ? (res[p] ?? 0) : 0;
-            return `<span class="hlr-chip ${v>0?'pos':v<0?'neg':'zero'}">${p}: ${fmt(v)}</span>`;
-          }).join('')}
-        </div>
-      </div>`;
-    }).join('')}`;
 }
 
-// ── Init ──────────────────────────────────────────────────────────────────────
-document.getElementById('count-pills').innerHTML = [3,4,5].map(n =>
-  `<button class="pill ${n===3?'active':''}" onclick="setCount(${n})">${n}</button>`
-).join('');
-state.playerCount = 3;
-renderNameInputs();
+// ── Voice: Ask ───────────────────────────────────────────────────────────────
+var aRec=null, aListen=false;
 
-// Test Firebase connection
-try {
-  const testRef = ref(db, '.info/connected');
-  onValue(testRef, (snapshot) => {
-    console.log('Firebase connected:', snapshot.val());
-    document.getElementById('loading').style.display = 'none';
-    showScreen('lobby-screen');
-  });
-  // Fallback: hide spinner after 3 seconds regardless
-  setTimeout(() => {
-    document.getElementById('loading').style.display = 'none';
-    showScreen('lobby-screen');
-  }, 3000);
-} catch(e) {
-  console.error('Firebase error:', e);
-  document.getElementById('loading').style.display = 'none';
-  showScreen('lobby-screen');
+function speak(text){
+  if(!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  var u=new SpeechSynthesisUtterance(text);
+  u.lang='en-US'; u.rate=1.0;
+  window.speechSynthesis.speak(u);
 }
+
+function startAsk(){
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){alert('Voice not supported. Use Safari on iOS 14.5+.');return;}
+  if(aListen){if(aRec)aRec.stop();return;}
+  aRec=new SR(); aRec.lang='en-US'; aRec.interimResults=false; aRec.maxAlternatives=1;
+  var btn=document.getElementById('askbtn');
+  aRec.onstart=function(){aListen=true;if(btn){btn.textContent='🔴';btn.classList.add('red');btn.classList.remove('blue');}};
+  aRec.onresult=function(e){handleAsk(e.results[0][0].transcript.toLowerCase().trim());};
+  aRec.onerror=function(){stopAsk();};
+  aRec.onend=function(){stopAsk();};
+  aRec.start();
+}
+function stopAsk(){aListen=false;var btn=document.getElementById('askbtn');if(btn){btn.textContent='🎤 Ask';btn.classList.remove('red');btn.classList.add('blue');}}
+
+function handleAsk(t){
+  if(/score|leaderboard|standing|who.s winning|how.s everyone|where do|what.s the/.test(t)){
+    var tot=calcTotals(), sorted=G.players.slice().sort(function(a,b){return tot[b]-tot[a];});
+    var hp=G.holes.filter(function(h){return h.locked;}).length;
+    var parts=['After '+hp+' holes. '];
+    for(var i=0;i<sorted.length;i++){var p=sorted[i],v=tot[p],nm=p.split(' ')[0];parts.push((i+1)+'. '+nm+', '+(v===0?'even':(v>0?'up ':'down ')+'$'+Math.abs(v))+'. ');}
+    speak(parts.join(''));
+  } else if(/what hole|which hole|hole are we/.test(t)){
+    var h=G.holes[G.active],hd=COURSE.holes[G.active];
+    speak('Hole '+h.hole+', par '+hd.par+', stroke index '+hd.si+'.');
+  } else if(/who.s the banker|who is the banker|banker/.test(t)){
+    var h=G.holes[G.active];
+    speak(h.banker?h.banker.split(' ')[0]+' is the banker.':'No banker selected yet.');
+  } else if(/limit|wager|bet|how much/.test(t)){
+    var h=G.holes[G.active], parts=['Limits '+h.lmin+' to '+h.lmax+' dollars. '];
+    G.players.forEach(function(p){if(p!==h.banker&&h.wagers[p]!=null){var pr=h.press[p]||{player:null,banker:false},fwv=fw(h.wagers[p],pr),m=mlt(pr);parts.push(p.split(' ')[0]+' in for '+(m>1?fwv+' after pressing':h.wagers[p])+' dollars. ');}});
+    speak(parts.join(''));
+  } else {
+    speak("You can ask: what's the score, what hole are we on, who's the banker, or what are the wagers.");
+  }
+}
+
+// ── Summary ──────────────────────────────────────────────────────────────────
+function renderSummary(){
+  var t=calcTotals(), sorted=G.players.slice().sort(function(a,b){return t[b]-t[a];});
+  var h='';
+  for(var i=0;i<sorted.length;i++){var p=sorted[i],v=t[p];h+='<div class="smrow"><span class="smrk'+(i===0?' g':'')+'">'+( i+1)+'</span><span class="smnm">'+p+'</span><span class="smam'+(v>0?' pos':v<0?' neg':'')+'">'+fmt(v)+'</span></div>';}
+  document.getElementById('smcard').innerHTML=h;
+  var lh=G.holes.filter(function(h){return h.locked;}), lh2='<div class="logt">HOLE BY HOLE</div>';
+  for(var i=0;i<lh.length;i++){
+    var hole=lh[i],r=calcResult(hole);
+    lh2+='<div class="logr"><div class="logrh"><span class="lrh">H'+hole.hole+'</span><span class="lrb">🏦 '+hole.banker+'</span><span class="lrl">$'+hole.lmin+'-$'+hole.lmax+'</span></div><div class="lrres">';
+    for(var j=0;j<G.players.length;j++){var p=G.players[j],v=r?(r[p]||0):0;lh2+='<span class="lrc '+(v>0?'pos':v<0?'neg':'zero')+'">'+p+': '+fmt(v)+'</span>';}
+    lh2+='</div></div>';
+  }
+  document.getElementById('smlog').innerHTML=lh2;
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+document.getElementById('teeup').addEventListener('click',startGame);
+document.getElementById('sumbtn').addEventListener('click',function(){show('SM');renderSummary();});
+document.getElementById('backbtn').addEventListener('click',function(){show('G');renderGame();});
+document.getElementById('newbtn').addEventListener('click',function(){show('S');});
+document.getElementById('askbtn').addEventListener('click',startAsk);
+
+var cp=document.getElementById('cpills');
+cp.innerHTML=[3,4,5].map(function(n){return'<button class="pill'+(n===3?' on':'')+'" data-n="'+n+'">'+n+'</button>';}).join('');
+cp.addEventListener('click',function(e){var b=e.target.closest('.pill');if(b)setCount(parseInt(b.dataset.n));});
+
+G.count=3;
+buildInputs();
 </script>
 </body>
 </html>
