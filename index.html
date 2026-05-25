@@ -13,8 +13,8 @@
     :root{--green:#1a6b3c;--green2:#2d8f55;--gold:#c9a84c;--goldk:#e8c96a;--cream:#f7f3ea;--dark:#0f1e13;--border:#d4c9ae;--txt:#1a1a1a;--muted:#6b7280;--win:#16a34a;--loss:#dc2626}
     html,body{height:100%;overflow:hidden}
     body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--txt);overscroll-behavior:none}
-    #S,#G,#SM{display:none}
-    #S.on{display:flex;flex-direction:column;align-items:center;padding:24px 16px 60px;gap:16px;min-height:100vh;overflow-y:auto;-webkit-overflow-scrolling:touch;background:linear-gradient(160deg,var(--dark) 0%,#1a3d24 60%,#0f2b1a 100%)}
+    #G,#SM{display:none}
+    #S{display:flex;flex-direction:column;align-items:center;padding:24px 16px 60px;gap:16px;min-height:100vh;overflow-y:auto;-webkit-overflow-scrolling:touch;background:linear-gradient(160deg,var(--dark) 0%,#1a3d24 60%,#0f2b1a 100%)}
     #G.on{display:flex;flex-direction:column;height:100vh}
     #SM.on{display:flex;flex-direction:column;align-items:center;padding:36px 16px 60px;gap:20px;min-height:100vh;overflow-y:auto;background:linear-gradient(160deg,var(--dark) 0%,#1a3d24 70%)}
     .logo-i{font-size:36px;text-align:center}
@@ -328,9 +328,9 @@ function startGame() {
 }
 
 function showScreen(id) {
-  document.getElementById('S').classList.toggle('on', id === 'S');
-  document.getElementById('G').classList.toggle('on', id === 'G');
-  document.getElementById('SM').classList.toggle('on', id === 'SM');
+  document.getElementById('S').style.display = id === 'S' ? 'flex' : 'none';
+  document.getElementById('G').style.display = id === 'G' ? 'flex' : 'none';
+  document.getElementById('SM').style.display = id === 'SM' ? 'flex' : 'none';
 }
 
 function renderGame() { renderLB(); renderNav(); renderCard(); }
