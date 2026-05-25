@@ -11,12 +11,21 @@
   <style>
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
     :root{--green:#1a6b3c;--green2:#2d8f55;--gold:#c9a84c;--goldk:#e8c96a;--cream:#f7f3ea;--dark:#0f1e13;--border:#d4c9ae;--txt:#1a1a1a;--muted:#6b7280;--win:#16a34a;--loss:#dc2626}
-    html,body{height:100%;width:100%;overflow:hidden;position:fixed}
-    body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--txt);overscroll-behavior:none;width:100%;max-width:100vw}
-    #G,#SM{display:none}
-    #S{display:flex;flex-direction:column;align-items:center;padding:24px 16px 60px;gap:16px;min-height:100%;width:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;background:linear-gradient(160deg,var(--dark) 0%,#1a3d24 60%,#0f2b1a 100%)}
-    #G.on{display:flex;flex-direction:column;height:100%;width:100%;position:fixed;top:0;left:0}
-    #SM.on{display:flex;flex-direction:column;align-items:center;padding:36px 16px 60px;gap:20px;min-height:100vh;overflow-y:auto;background:linear-gradient(160deg,var(--dark) 0%,#1a3d24 70%)}
+    html,body{height:100%;overflow:hidden}
+    body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--txt);overscroll-behavior:none}
+
+    .screen{display:none}
+    .screen.active{display:block}
+
+    #setup{background:linear-gradient(160deg,var(--dark) 0%,#1a3d24 60%,#0f2b1a 100%);min-height:100vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+    #setup.active{display:flex;flex-direction:column;align-items:center;padding:24px 16px 60px;gap:16px}
+
+    #game{height:100vh}
+    #game.active{display:flex;flex-direction:column}
+
+    #summary{background:linear-gradient(160deg,var(--dark) 0%,#1a3d24 70%);min-height:100vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+    #summary.active{display:flex;flex-direction:column;align-items:center;padding:36px 16px 60px;gap:20px}
+
     .logo-i{font-size:36px;text-align:center}
     .logo-t{font-family:'Bebas Neue',sans-serif;font-size:52px;color:var(--gold);letter-spacing:6px;line-height:1;text-align:center}
     .card{background:var(--cream);border-radius:20px;padding:20px 18px;width:100%;max-width:420px;display:flex;flex-direction:column;gap:14px}
@@ -31,10 +40,12 @@
     .hi:focus{outline:none;border-color:var(--green)}
     .teeup{width:100%;padding:14px;background:var(--green);color:white;border:none;border-radius:12px;font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;cursor:pointer}
     .teeup:disabled{opacity:0.4}
+
     .topbar{background:var(--dark);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;padding-top:max(14px,env(safe-area-inset-top))}
     .gtitle{font-family:'Bebas Neue',sans-serif;color:var(--gold);font-size:26px;letter-spacing:3px}
     .sumbtn{padding:7px 14px;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-weight:600;font-size:12px;cursor:pointer;background:var(--gold);color:var(--dark)}
     .gscroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:40px}
+
     .lb{background:white;margin:12px 12px 6px;border-radius:14px;border:1.5px solid var(--border);overflow:hidden}
     .lbh{background:var(--green);padding:9px 14px;display:flex;justify-content:space-between;align-items:center}
     .lbt{font-family:'Bebas Neue',sans-serif;color:white;font-size:17px;letter-spacing:2px}
@@ -46,11 +57,13 @@
     .lbn{flex:1;font-weight:500;font-size:13px}
     .lba{font-weight:700;font-size:14px}
     .lba.pos{color:var(--win)}.lba.neg{color:var(--loss)}
+
     .hnav{display:flex;gap:5px;padding:5px 12px;overflow-x:auto;scrollbar-width:none;flex-shrink:0}
     .hnav::-webkit-scrollbar{display:none}
     .hn{min-width:34px;height:34px;border-radius:7px;border:1.5px solid var(--border);background:white;font-weight:600;font-size:12px;cursor:pointer;color:var(--muted);flex-shrink:0;font-family:'DM Sans',sans-serif}
     .hn.done{background:var(--green);border-color:var(--green);color:white}
     .hn.cur{border-color:var(--gold);color:var(--gold);font-weight:700}
+
     .hcard{margin:5px 12px;background:white;border-radius:14px;border:1.5px solid var(--border);overflow:hidden}
     .hcard.locked{opacity:0.88}
     .hhdr{background:var(--green);padding:12px 16px;display:flex;align-items:center;justify-content:space-between}
@@ -61,9 +74,11 @@
     .bnm{color:var(--goldk);font-weight:600;font-size:13px}
     .sec{padding:11px 16px;border-bottom:1px solid #f0e8d8}
     .slbl{display:block;font-size:10px;font-weight:700;letter-spacing:2px;color:var(--green);margin-bottom:9px}
+
     .bpills{display:flex;gap:6px;flex-wrap:wrap}
     .bpill{flex:1;min-width:56px;padding:9px 6px;border:2px solid var(--border);background:white;border-radius:9px;font-weight:600;font-size:13px;cursor:pointer;color:var(--muted);text-align:center;font-family:'DM Sans',sans-serif}
     .bpill.on{border-color:var(--gold);background:var(--gold);color:var(--dark)}
+
     .limrow{display:flex;align-items:flex-start;gap:8px}
     .limf{flex:1}
     .liml{display:block;font-size:10px;font-weight:700;color:var(--muted);margin-bottom:5px;letter-spacing:1px}
@@ -72,12 +87,14 @@
     .lp{padding:5px 8px;border:1.5px solid var(--border);background:white;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;color:var(--muted);font-family:'DM Sans',sans-serif}
     .lp.on{border-color:var(--green);background:var(--green);color:white}
     .limsum{margin-top:8px;font-size:11px;color:var(--muted);background:#f7f3ea;border-radius:7px;padding:6px 9px}
+
     .wrow{display:flex;align-items:center;gap:8px;margin-bottom:8px}
     .wrow:last-child{margin-bottom:0}
     .wnm{font-weight:600;font-size:13px;min-width:60px}
     .wpills{display:flex;flex-wrap:wrap;gap:4px}
     .wp{padding:6px 8px;border:1.5px solid var(--border);background:white;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;color:var(--muted);font-family:'DM Sans',sans-serif}
     .wp.on{border-color:var(--gold);background:var(--gold);color:var(--dark)}
+
     .prows{display:flex;flex-direction:column}
     .prow2{padding:10px 0;border-bottom:1px solid #f3ede0}
     .prow2:last-child{border-bottom:none}
@@ -97,17 +114,20 @@
     .rchip.win{background:#dcfce7;color:var(--win)}
     .rchip.loss{background:#fee2e2;color:var(--loss)}
     .rchip.push{background:#f3f4f6;color:var(--muted)}
+
     .pressrow{display:flex;align-items:center;gap:5px;margin-top:7px;flex-wrap:wrap}
     .presslbl{font-size:10px;font-weight:700;letter-spacing:1px;color:var(--muted)}
     .prbtn{padding:4px 10px;border-radius:18px;border:1.5px solid var(--border);background:white;font-size:11px;font-weight:700;cursor:pointer;color:var(--muted);font-family:'DM Sans',sans-serif}
     .prbtn.p2{border-color:#f97316;background:#f97316;color:white}
     .prbtn.p3{border-color:#dc2626;background:#dc2626;color:white}
-    .prbtn.pb{border-color:#7c3aed;background:#7c3aed;color:white}
+    .prbtn.pb2{border-color:#7c3aed;background:#7c3aed;color:white}
     .fbet{font-size:12px;font-weight:700;background:#f0e8d8;border-radius:7px;padding:3px 8px;margin-left:auto}
+
     .hfoot{padding:12px 16px}
     .lbtn{width:100%;padding:13px;background:var(--green);color:white;border:none;border-radius:9px;font-family:'Bebas Neue',sans-serif;font-size:19px;letter-spacing:1.5px;cursor:pointer}
     .lbtn:disabled{opacity:0.35;font-size:13px;letter-spacing:0.5px;font-family:'DM Sans',sans-serif;font-weight:600}
     .ubtn{width:100%;padding:10px;background:transparent;border:1.5px solid var(--border);border-radius:9px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;font-family:'DM Sans',sans-serif}
+
     .smtitle{font-family:'Bebas Neue',sans-serif;font-size:48px;color:var(--gold);letter-spacing:4px}
     .smcard{width:100%;max-width:440px;background:var(--cream);border-radius:18px;overflow:hidden}
     .smrow{display:flex;align-items:center;padding:15px 20px;border-bottom:1px solid var(--border);gap:12px}
@@ -135,7 +155,7 @@
 </head>
 <body>
 
-<div id="S">
+<div id="setup" class="screen active">
   <div><div class="logo-i">⛳</div><div class="logo-t">BANKER</div></div>
   <div class="card">
     <div>
@@ -150,7 +170,7 @@
   </div>
 </div>
 
-<div id="G">
+<div id="game" class="screen">
   <div class="topbar">
     <span class="gtitle">⛳ BANKER</span>
     <button class="sumbtn" id="sumbtn">Summary</button>
@@ -162,7 +182,7 @@
   </div>
 </div>
 
-<div id="SM">
+<div id="summary" class="screen">
   <div class="smtitle">🏆 Final Scores</div>
   <div id="smcard" class="smcard"></div>
   <div id="smlog" class="smlog"></div>
@@ -175,7 +195,7 @@
 <script>
 var HOLES = 18;
 var BETS = [5,10,15,20,25,30,40,50,75,100];
-var COURSE = {rating:72.6, slope:137, par:72, holes:[
+var COURSE = {rating:72.6,slope:137,par:72,holes:[
   {h:1,par:4,si:13},{h:2,par:5,si:1},{h:3,par:4,si:9},{h:4,par:4,si:11},
   {h:5,par:3,si:7},{h:6,par:5,si:3},{h:7,par:3,si:17},{h:8,par:4,si:15},
   {h:9,par:4,si:5},{h:10,par:4,si:6},{h:11,par:3,si:16},{h:12,par:4,si:10},
@@ -183,426 +203,337 @@ var COURSE = {rating:72.6, slope:137, par:72, holes:[
   {h:17,par:3,si:12},{h:18,par:4,si:4}
 ]};
 
-var G = {players:[], count:3, holes:[], active:0, hdcp:{}, chdcp:{}};
+var G = {players:[],count:3,holes:[],active:0,hdcp:{},chdcp:{}};
 
-function fmt(v) {
-  if (v === 0) return 'E';
-  return (v > 0 ? '+$' : '-$') + Math.abs(v);
+function fmt(v){return v===0?'E':(v>0?'+$':'-$')+Math.abs(v);}
+
+function courseHdcp(idx){
+  return Math.round(idx*(COURSE.slope/113)+(COURSE.rating-COURSE.par));
 }
 
-function courseHdcp(idx) {
-  return Math.round(idx * (COURSE.slope / 113) + (COURSE.rating - COURSE.par));
+// Par 3 = 3x press, Par 4/5 = 2x press
+function holeMult(hi){
+  return COURSE.holes[hi].par===3?3:2;
 }
 
-// Par 3 = 3x multiplier, Par 4/5 = 2x multiplier
-function holeMult(hi) {
-  return COURSE.holes[hi].par === 3 ? 3 : 2;
+function calcMult(press,hi){
+  var pm=press.player?holeMult(hi):1;
+  return press.banker?pm*holeMult(hi):pm;
 }
 
-// press.player = true/false (pressed or not)
-// press.banker = true/false (banker pressed or not)
-function calcMult(press, hi) {
-  var pm = press.player ? holeMult(hi) : 1;
-  if (press.banker) pm = pm * holeMult(hi);
-  return pm;
+function finalWager(base,press,hi){
+  return base*calcMult(press,hi);
 }
 
-function finalWager(base, press, hi) {
-  return base * calcMult(press, hi);
-}
-
-function getStrokes(player, hi) {
-  var ch = G.chdcp[player] || 0;
-  var si = COURSE.holes[hi].si;
-  var s = 0;
-  if (ch >= si) s++;
-  if (ch >= 18 + si) s++;
+function getStrokes(player,hi){
+  var ch=G.chdcp[player]||0,si=COURSE.holes[hi].si,s=0;
+  if(ch>=si) s++;
+  if(ch>=18+si) s++;
   return s;
 }
 
-function initHoles(players) {
-  var arr = [];
-  for (var i = 0; i < HOLES; i++) {
-    var w = {}, pr = {}, sc = {};
-    for (var j = 0; j < players.length; j++) {
-      w[players[j]] = null;
-      pr[players[j]] = {player: false, banker: false};
-      sc[players[j]] = '';
+function initHoles(players){
+  var arr=[];
+  for(var i=0;i<HOLES;i++){
+    var w={},pr={},sc={};
+    for(var j=0;j<players.length;j++){
+      w[players[j]]=null;
+      pr[players[j]]={player:false,banker:false};
+      sc[players[j]]='';
     }
-    arr.push({hole: i+1, banker: null, lmin: 5, lmax: 50, wagers: w, press: pr, strokes: sc, locked: false});
+    arr.push({hole:i+1,banker:null,lmin:5,lmax:50,wagers:w,press:pr,strokes:sc,locked:false});
   }
   return arr;
 }
 
-function calcResult(hole) {
-  if (!hole.banker) return null;
-  var hi = hole.hole - 1;
-  var bs = Number(hole.strokes[hole.banker]);
-  if (!bs) return null;
-  var bnet = bs - getStrokes(hole.banker, hi);
-  var res = {}, bn = 0;
-  for (var i = 0; i < G.players.length; i++) {
-    var p = G.players[i];
-    if (p === hole.banker) continue;
-    var ps = Number(hole.strokes[p]);
-    if (!ps || hole.wagers[p] == null) continue;
-    var pnet = ps - getStrokes(p, hi);
-    var fw = finalWager(hole.wagers[p], hole.press[p], hi);
-    var diff = bnet - pnet;
-    var amt = diff > 0 ? fw : diff < 0 ? -fw : 0;
-    res[p] = amt;
-    bn -= amt;
+function calcResult(hole){
+  if(!hole.banker) return null;
+  var hi=hole.hole-1;
+  var bs=Number(hole.strokes[hole.banker]);
+  if(!bs) return null;
+  var bnet=bs-getStrokes(hole.banker,hi);
+  var res={},bn=0;
+  for(var i=0;i<G.players.length;i++){
+    var p=G.players[i];
+    if(p===hole.banker) continue;
+    var ps=Number(hole.strokes[p]);
+    if(!ps||hole.wagers[p]==null) continue;
+    var pnet=ps-getStrokes(p,hi);
+    var fw=finalWager(hole.wagers[p],hole.press[p],hi);
+    var diff=bnet-pnet;
+    var amt=diff>0?fw:diff<0?-fw:0;
+    res[p]=amt; bn-=amt;
   }
-  res[hole.banker] = bn;
+  res[hole.banker]=bn;
   return res;
 }
 
-function calcTotals() {
-  var t = {};
-  for (var i = 0; i < G.players.length; i++) t[G.players[i]] = 0;
-  for (var i = 0; i < G.holes.length; i++) {
-    var h = G.holes[i];
-    if (!h.locked) continue;
-    var r = calcResult(h);
-    if (!r) continue;
-    for (var j = 0; j < G.players.length; j++) t[G.players[j]] += (r[G.players[j]] || 0);
+function calcTotals(){
+  var t={};
+  for(var i=0;i<G.players.length;i++) t[G.players[i]]=0;
+  for(var i=0;i<G.holes.length;i++){
+    var h=G.holes[i]; if(!h.locked) continue;
+    var r=calcResult(h); if(!r) continue;
+    for(var j=0;j<G.players.length;j++) t[G.players[j]]+=(r[G.players[j]]||0);
   }
   return t;
 }
 
-// Setup
-function setCount(n) {
-  G.count = n;
-  var btns = document.querySelectorAll('.cpill');
-  for (var i = 0; i < btns.length; i++) btns[i].classList.toggle('on', parseInt(btns[i].dataset.n) === n);
+function setCount(n){
+  G.count=n;
+  var btns=document.querySelectorAll('.cpill');
+  for(var i=0;i<btns.length;i++) btns[i].classList.toggle('on',parseInt(btns[i].dataset.n)===n);
   buildInputs();
 }
 
-function buildInputs() {
-  var c = document.getElementById('ninputs');
-  var oldn = c.querySelectorAll('.ni'), oldh = c.querySelectorAll('.hi');
-  var en = [], eh = [];
-  for (var i = 0; i < oldn.length; i++) en.push(oldn[i].value);
-  for (var i = 0; i < oldh.length; i++) eh.push(oldh[i].value);
-  c.innerHTML = '';
-  for (var i = 0; i < G.count; i++) {
-    var row = document.createElement('div');
-    row.className = 'prow';
-    var ni = document.createElement('input');
-    ni.type = 'text'; ni.className = 'ni'; ni.placeholder = 'Player ' + (i+1);
-    ni.value = en[i] || ''; ni.autocomplete = 'off';
-    ni.addEventListener('input', chkValid);
-    var hi = document.createElement('input');
-    hi.type = 'number'; hi.className = 'hi'; hi.placeholder = 'Hdcp';
-    hi.min = '0'; hi.max = '54'; hi.step = '0.1';
-    hi.value = eh[i] || '';
-    hi.addEventListener('input', chkValid);
+function buildInputs(){
+  var c=document.getElementById('ninputs');
+  var oldn=c.querySelectorAll('.ni'),oldh=c.querySelectorAll('.hi');
+  var en=[],eh=[];
+  for(var i=0;i<oldn.length;i++) en.push(oldn[i].value);
+  for(var i=0;i<oldh.length;i++) eh.push(oldh[i].value);
+  c.innerHTML='';
+  for(var i=0;i<G.count;i++){
+    var row=document.createElement('div');
+    row.className='prow';
+    var ni=document.createElement('input');
+    ni.type='text'; ni.className='ni'; ni.placeholder='Player '+(i+1);
+    ni.value=en[i]||''; ni.autocomplete='off';
+    ni.addEventListener('input',chkValid);
+    var hi=document.createElement('input');
+    hi.type='number'; hi.className='hi'; hi.placeholder='Hdcp';
+    hi.min='0'; hi.max='54'; hi.step='0.1';
+    hi.value=eh[i]||'';
+    hi.addEventListener('input',chkValid);
     row.appendChild(ni); row.appendChild(hi);
     c.appendChild(row);
   }
   chkValid();
 }
 
-function chkValid() {
-  var ns = document.querySelectorAll('.ni'), hs = document.querySelectorAll('.hi');
-  var ok = true;
-  for (var i = 0; i < ns.length; i++) if (!ns[i].value.trim()) ok = false;
-  for (var i = 0; i < hs.length; i++) if (hs[i].value === '') ok = false;
-  document.getElementById('teeup').disabled = !ok;
+function chkValid(){
+  var ns=document.querySelectorAll('.ni'),hs=document.querySelectorAll('.hi');
+  var ok=true;
+  for(var i=0;i<ns.length;i++) if(!ns[i].value.trim()) ok=false;
+  for(var i=0;i<hs.length;i++) if(hs[i].value==='') ok=false;
+  document.getElementById('teeup').disabled=!ok;
 }
 
-function startGame() {
-  var ns = document.querySelectorAll('.ni'), hs = document.querySelectorAll('.hi');
-  G.players = []; G.hdcp = {}; G.chdcp = {};
-  for (var i = 0; i < ns.length; i++) {
-    var p = ns[i].value.trim();
+function startGame(){
+  var ns=document.querySelectorAll('.ni'),hs=document.querySelectorAll('.hi');
+  G.players=[]; G.hdcp={}; G.chdcp={};
+  for(var i=0;i<ns.length;i++){
+    var p=ns[i].value.trim();
     G.players.push(p);
-    var idx = parseFloat(hs[i].value) || 0;
-    G.hdcp[p] = idx;
-    G.chdcp[p] = courseHdcp(idx);
+    var idx=parseFloat(hs[i].value)||0;
+    G.hdcp[p]=idx; G.chdcp[p]=courseHdcp(idx);
   }
-  G.holes = initHoles(G.players);
-  G.active = 0;
-  showScreen('G');
-  renderGame();
+  G.holes=initHoles(G.players); G.active=0;
+  showScreen('game'); renderGame();
 }
 
-function showScreen(id) {
-  document.getElementById('S').style.display = id === 'S' ? 'flex' : 'none';
-  document.getElementById('G').style.display = id === 'G' ? 'flex' : 'none';
-  document.getElementById('SM').style.display = id === 'SM' ? 'flex' : 'none';
+function showScreen(id){
+  var ids=['setup','game','summary'];
+  for(var i=0;i<ids.length;i++){
+    var el=document.getElementById(ids[i]);
+    el.classList.toggle('active',ids[i]===id);
+  }
 }
 
-function renderGame() { renderLB(); renderNav(); renderCard(); }
+function renderGame(){renderLB();renderNav();renderCard();}
 
-function renderLB() {
-  var t = calcTotals();
-  var sorted = G.players.slice().sort(function(a,b) { return t[b] - t[a]; });
-  var hp = G.holes.filter(function(h) { return h.locked; }).length;
-  var h = '<div class="lb"><div class="lbh"><span class="lbt">LEADERBOARD</span><span class="lbs">' + hp + '/18</span></div>';
-  for (var i = 0; i < sorted.length; i++) {
-    var p = sorted[i], v = t[p], ch = G.chdcp[p] || 0;
-    h += '<div class="lbr' + (i === 0 && v > 0 ? ' lead' : '') + '">';
-    h += '<span class="lbp">' + (i+1) + '</span>';
-    h += '<span class="lbn">' + p + ' <span style="font-size:10px;color:var(--muted)">CH' + ch + '</span></span>';
-    h += '<span class="lba' + (v > 0 ? ' pos' : v < 0 ? ' neg' : '') + '">' + fmt(v) + '</span></div>';
+function renderLB(){
+  var t=calcTotals();
+  var sorted=G.players.slice().sort(function(a,b){return t[b]-t[a];});
+  var hp=G.holes.filter(function(h){return h.locked;}).length;
+  var h='<div class="lb"><div class="lbh"><span class="lbt">LEADERBOARD</span><span class="lbs">'+hp+'/18</span></div>';
+  for(var i=0;i<sorted.length;i++){
+    var p=sorted[i],v=t[p],ch=G.chdcp[p]||0;
+    h+='<div class="lbr'+(i===0&&v>0?' lead':'')+'"><span class="lbp">'+(i+1)+'</span>';
+    h+='<span class="lbn">'+p+' <span style="font-size:10px;color:var(--muted)">CH'+ch+'</span></span>';
+    h+='<span class="lba'+(v>0?' pos':v<0?' neg':'')+'">'+fmt(v)+'</span></div>';
   }
-  h += '</div>';
-  document.getElementById('lb').innerHTML = h;
+  h+='</div>';
+  document.getElementById('lb').innerHTML=h;
 }
 
-function renderNav() {
-  var h = '';
-  for (var i = 0; i < G.holes.length; i++) {
-    var hole = G.holes[i];
-    h += '<button class="hn' + (hole.locked ? ' done' : '') + (i === G.active ? ' cur' : '') + '" data-hi="' + i + '">' + (i+1) + '</button>';
+function renderNav(){
+  var h='';
+  for(var i=0;i<G.holes.length;i++){
+    var hole=G.holes[i];
+    h+='<button class="hn'+(hole.locked?' done':'')+(i===G.active?' cur':'')+'" data-hi="'+i+'">'+(i+1)+'</button>';
   }
-  document.getElementById('hnav').innerHTML = h;
+  document.getElementById('hnav').innerHTML=h;
 }
 
-function renderCard() {
-  var hi = G.active;
-  var hole = G.holes[hi];
-  var locked = hole.locked;
-  var result = locked ? calcResult(hole) : null;
-  var bset = !!hole.banker;
-  var hd = COURSE.holes[hi];
-  var pm = holeMult(hi);
-  var vw = BETS.filter(function(v) { return v >= hole.lmin && v <= hole.lmax; });
-  var nonB = G.players.filter(function(p) { return p !== hole.banker; });
-  var allW = bset && nonB.every(function(p) { return hole.wagers[p] != null; });
-  var allS = bset && G.players.every(function(p) { return String(hole.strokes[p]).trim() !== ''; });
-  var ready = allW && allS;
-  var lockLbl = !bset ? 'Select Banker' : !allW ? 'All Players Must Wager' : !allS ? 'Enter All Scores' : 'Lock Hole ' + hole.hole;
+function renderCard(){
+  var hi=G.active,hole=G.holes[hi];
+  var locked=hole.locked,result=locked?calcResult(hole):null;
+  var bset=!!hole.banker,hd=COURSE.holes[hi],pm=holeMult(hi);
+  var vw=BETS.filter(function(v){return v>=hole.lmin&&v<=hole.lmax;});
+  var nonB=G.players.filter(function(p){return p!==hole.banker;});
+  var allW=bset&&nonB.every(function(p){return hole.wagers[p]!=null;});
+  var allS=bset&&G.players.every(function(p){return String(hole.strokes[p]).trim()!=='';});
+  var ready=allW&&allS;
+  var lockLbl=!bset?'Select Banker':!allW?'All Players Must Wager':!allS?'Enter All Scores':'Lock Hole '+hole.hole;
 
-  var h = '<div class="hcard' + (locked ? ' locked' : '') + '">';
-  h += '<div class="hhdr">';
-  h += '<div><span class="hlbl">HOLE</span><span class="hnum">' + hole.hole + '</span></div>';
-  h += '<div class="hinfo">PAR ' + hd.par + '<br>SI ' + hd.si + '</div>';
-  h += '<div class="bbadge"><span>🏦</span><span class="bnm">' + (hole.banker || '—') + '</span></div>';
-  h += '</div>';
+  var h='<div class="hcard'+(locked?' locked':'')+'"><div class="hhdr">';
+  h+='<div><span class="hlbl">HOLE</span><span class="hnum">'+hole.hole+'</span></div>';
+  h+='<div class="hinfo">PAR '+hd.par+'<br>SI '+hd.si+'</div>';
+  h+='<div class="bbadge"><span>🏦</span><span class="bnm">'+(hole.banker||'—')+'</span></div></div>';
 
-  // Step 1: Banker
-  if (!locked) {
-    h += '<div class="sec"><span class="slbl">① WHO\'S THE BANKER?</span><div class="bpills">';
-    for (var i = 0; i < G.players.length; i++) {
-      var p = G.players[i];
-      h += '<button class="bpill' + (hole.banker === p ? ' on' : '') + '" data-action="banker" data-p="' + p + '">' + p + '</button>';
+  if(!locked){
+    h+='<div class="sec"><span class="slbl">① WHO\'S THE BANKER?</span><div class="bpills">';
+    for(var i=0;i<G.players.length;i++){
+      var p=G.players[i];
+      h+='<button class="bpill'+(hole.banker===p?' on':'')+'" data-action="banker" data-p="'+p+'">'+p+'</button>';
     }
-    h += '</div></div>';
+    h+='</div></div>';
   }
 
-  // Step 2: Limits
-  if (bset && !locked) {
-    h += '<div class="sec"><span class="slbl">② BANKER SETS LIMITS</span><div class="limrow">';
-    h += '<div class="limf"><label class="liml">MIN</label><div class="lpills">';
-    for (var i = 0; i < BETS.length; i++) {
-      var v = BETS[i]; if (v > hole.lmax) continue;
-      h += '<button class="lp' + (hole.lmin === v ? ' on' : '') + '" data-action="lmin" data-v="' + v + '">$' + v + '</button>';
-    }
-    h += '</div></div><div class="limdiv">to</div><div class="limf"><label class="liml">MAX</label><div class="lpills">';
-    for (var i = 0; i < BETS.length; i++) {
-      var v = BETS[i]; if (v < hole.lmin) continue;
-      h += '<button class="lp' + (hole.lmax === v ? ' on' : '') + '" data-action="lmax" data-v="' + v + '">$' + v + '</button>';
-    }
-    h += '</div></div></div>';
-    if (vw.length > 0) {
-      h += '<div class="limsum">Allowed: ' + vw.map(function(v) { return '$' + v; }).join(', ');
-      h += ' · Max (' + pm + '×+bank): $' + (hole.lmax * pm * pm) + '</div>';
-    }
-    h += '</div>';
+  if(bset&&!locked){
+    h+='<div class="sec"><span class="slbl">② BANKER SETS LIMITS</span><div class="limrow">';
+    h+='<div class="limf"><label class="liml">MIN</label><div class="lpills">';
+    for(var i=0;i<BETS.length;i++){var v=BETS[i];if(v>hole.lmax)continue;h+='<button class="lp'+(hole.lmin===v?' on':'')+'" data-action="lmin" data-v="'+v+'">$'+v+'</button>';}
+    h+='</div></div><div class="limdiv">to</div><div class="limf"><label class="liml">MAX</label><div class="lpills">';
+    for(var i=0;i<BETS.length;i++){var v=BETS[i];if(v<hole.lmin)continue;h+='<button class="lp'+(hole.lmax===v?' on':'')+'" data-action="lmax" data-v="'+v+'">$'+v+'</button>';}
+    h+='</div></div></div>';
+    if(vw.length>0) h+='<div class="limsum">Allowed: '+vw.map(function(v){return'$'+v;}).join(', ')+' · Max ('+pm+'×+bank): $'+(hole.lmax*pm*pm)+'</div>';
+    h+='</div>';
   }
 
-  // Step 3: Wagers
-  if (bset && !locked) {
-    h += '<div class="sec"><span class="slbl">③ PLAYER WAGERS</span>';
-    for (var i = 0; i < nonB.length; i++) {
-      var p = nonB[i];
-      h += '<div class="wrow"><span class="wnm">' + p + '</span><div class="wpills">';
-      for (var j = 0; j < vw.length; j++) {
-        var v = vw[j];
-        h += '<button class="wp' + (hole.wagers[p] === v ? ' on' : '') + '" data-action="wager" data-p="' + p + '" data-v="' + v + '">$' + v + '</button>';
+  if(bset&&!locked){
+    h+='<div class="sec"><span class="slbl">③ PLAYER WAGERS</span>';
+    for(var i=0;i<nonB.length;i++){
+      var p=nonB[i];
+      h+='<div class="wrow"><span class="wnm">'+p+'</span><div class="wpills">';
+      for(var j=0;j<vw.length;j++){var v=vw[j];h+='<button class="wp'+(hole.wagers[p]===v?' on':'')+'" data-action="wager" data-p="'+p+'" data-v="'+v+'">$'+v+'</button>';}
+      h+='</div></div>';
+    }
+    h+='</div>';
+  }
+
+  if(bset){
+    h+='<div class="sec"><span class="slbl">'+(locked?'SCORES & RESULTS':'④ SCORES & PRESS')+'</span><div class="prows">';
+    for(var i=0;i<G.players.length;i++){
+      var p=G.players[i],ib=p===hole.banker;
+      var pr=hole.press[p]||{player:false,banker:false};
+      var bw=hole.wagers[p];
+      var fwv=bw!=null?finalWager(bw,pr,hi):null;
+      var m=calcMult(pr,hi);
+      var stk=getStrokes(p,hi),gross=Number(hole.strokes[p]),net=gross?gross-stk:null;
+      var rv=result?(result[p]||0):null;
+      var cc=rv>0?'win':rv<0?'loss':'push';
+
+      h+='<div class="prow2'+(ib?' ib':'')+'"><div class="ptop"><div class="pinfo"><span class="pname">'+p+'</span>';
+      if(ib) h+='<span class="btag">BANKER</span>';
+      if(!ib&&bw!=null) h+='<span class="wtag">'+(m>1?'base $'+bw+' → $'+fwv:'$'+bw)+'</span>';
+      h+='</div><div class="iarea">';
+      if(stk>0) h+='<span class="sbadge">+'+stk+'</span>';
+      h+='<input type="number" inputmode="numeric" pattern="[0-9]*" min="1" max="15" class="sinp"'+(locked?' disabled':'')+' value="'+hole.strokes[p]+'" placeholder="—" data-action="score" data-p="'+p+'"/>';
+      if(net&&stk>0) h+='<span class="nbadge">net '+net+'</span>';
+      if(locked&&rv!==null) h+='<div class="rchip '+cc+'">'+fmt(rv)+'</div>';
+      h+='</div></div>';
+
+      if(!ib&&!locked&&bw!=null){
+        h+='<div class="pressrow"><span class="presslbl">PRESS:</span>';
+        h+='<button class="prbtn'+(pr.player?(pm===3?' p3':' p2'):'')+'" data-action="press" data-p="'+p+'">'+pm+'× Press</button>';
+        h+='<button class="prbtn'+(pr.banker?' pb2':'')+'" data-action="bpress" data-p="'+p+'">🏦 '+pm+'× Bank</button>';
+        if(fwv&&m>1) h+='<span class="fbet">$'+fwv+'</span>';
+        h+='</div>';
       }
-      h += '</div></div>';
-    }
-    h += '</div>';
-  }
-
-  // Step 4: Scores & Press
-  if (bset) {
-    h += '<div class="sec"><span class="slbl">' + (locked ? 'SCORES & RESULTS' : '④ SCORES & PRESS') + '</span><div class="prows">';
-    for (var i = 0; i < G.players.length; i++) {
-      var p = G.players[i];
-      var ib = p === hole.banker;
-      var pr = hole.press[p] || {player: false, banker: false};
-      var bw = hole.wagers[p];
-      var fwv = bw != null ? finalWager(bw, pr, hi) : null;
-      var m = calcMult(pr, hi);
-      var stk = getStrokes(p, hi);
-      var gross = Number(hole.strokes[p]);
-      var net = gross ? gross - stk : null;
-      var rv = result ? (result[p] || 0) : null;
-      var cc = rv > 0 ? 'win' : rv < 0 ? 'loss' : 'push';
-
-      h += '<div class="prow2' + (ib ? ' ib' : '') + '">';
-      h += '<div class="ptop"><div class="pinfo"><span class="pname">' + p + '</span>';
-      if (ib) h += '<span class="btag">BANKER</span>';
-      if (!ib && bw != null) h += '<span class="wtag">' + (m > 1 ? 'base $' + bw + ' → $' + fwv : '$' + bw) + '</span>';
-      h += '</div><div class="iarea">';
-      if (stk > 0) h += '<span class="sbadge">+' + stk + '</span>';
-      h += '<input type="number" inputmode="numeric" pattern="[0-9]*" min="1" max="15" class="sinp"' + (locked ? ' disabled' : '') + ' value="' + hole.strokes[p] + '" placeholder="—" data-action="score" data-p="' + p + '"/>';
-      if (net && stk > 0) h += '<span class="nbadge">net ' + net + '</span>';
-      if (locked && rv !== null) h += '<div class="rchip ' + cc + '">' + fmt(rv) + '</div>';
-      h += '</div></div>';
-
-      // Press buttons
-      if (!ib && !locked && bw != null) {
-        var plbl = pm + '× Press';
-        h += '<div class="pressrow"><span class="presslbl">PRESS:</span>';
-        h += '<button class="prbtn' + (pr.player ? (pm === 3 ? ' p3' : ' p2') : '') + '" data-action="press" data-p="' + p + '">' + plbl + '</button>';
-        h += '<button class="prbtn' + (pr.banker ? ' pb' : '') + '" data-action="bpress" data-p="' + p + '">🏦 ' + pm + '× Bank</button>';
-        if (fwv && m > 1) h += '<span class="fbet">$' + fwv + '</span>';
-        h += '</div>';
+      if(!ib&&locked&&bw!=null){
+        var pd=[];
+        if(pr.player) pd.push(pm+'× pressed');
+        if(pr.banker) pd.push('🏦 '+pm+'× bank');
+        if(pd.length) h+='<div class="pressrow"><span style="font-size:11px;color:var(--muted)">'+pd.join(' + ')+' → $'+fwv+'</span></div>';
       }
-      if (!ib && locked && bw != null) {
-        var pd = [];
-        if (pr.player) pd.push(pm + '× pressed');
-        if (pr.banker) pd.push('🏦 ' + pm + '× bank');
-        if (pd.length > 0) h += '<div class="pressrow"><span style="font-size:11px;color:var(--muted)">' + pd.join(' + ') + ' → $' + fwv + '</span></div>';
-      }
-      h += '</div>';
+      h+='</div>';
     }
-    h += '</div></div>';
+    h+='</div></div>';
   }
 
-  h += '<div class="hfoot">';
-  if (locked) {
-    h += '<button class="ubtn" data-action="unlock">✏️ Edit Hole</button>';
-  } else {
-    h += '<button class="lbtn"' + (ready ? '' : ' disabled') + ' data-action="lock">' + lockLbl + '</button>';
-  }
-  h += '</div></div>';
-  document.getElementById('hcard').innerHTML = h;
+  h+='<div class="hfoot">';
+  h+=locked?'<button class="ubtn" data-action="unlock">✏️ Edit Hole</button>':'<button class="lbtn"'+(ready?'':' disabled')+' data-action="lock">'+lockLbl+'</button>';
+  h+='</div></div>';
+  document.getElementById('hcard').innerHTML=h;
 }
 
-// Event delegation
-document.addEventListener('click', function(e) {
-  var el = e.target.closest('[data-action]');
-  if (!el) return;
-  var a = el.dataset.action, p = el.dataset.p, v = el.dataset.v;
-  var hole = G.holes[G.active];
+document.addEventListener('click',function(e){
+  var el=e.target.closest('[data-action]'); if(!el) return;
+  var a=el.dataset.action,p=el.dataset.p,v=el.dataset.v;
+  var hole=G.holes[G.active];
 
-  if (a === 'banker') {
-    hole.banker = p;
-    for (var i = 0; i < G.players.length; i++) {
-      hole.wagers[G.players[i]] = null;
-      hole.press[G.players[i]] = {player: false, banker: false};
-    }
+  if(a==='banker'){
+    hole.banker=p;
+    for(var i=0;i<G.players.length;i++){hole.wagers[G.players[i]]=null;hole.press[G.players[i]]={player:false,banker:false};}
     renderGame();
-  } else if (a === 'lmin') {
-    hole.lmin = Number(v);
-    if (hole.lmax < hole.lmin) hole.lmax = hole.lmin;
-    for (var i = 0; i < G.players.length; i++) {
-      var pl = G.players[i];
-      if (hole.wagers[pl] != null && (hole.wagers[pl] < hole.lmin || hole.wagers[pl] > hole.lmax)) {
-        hole.wagers[pl] = null; hole.press[pl] = {player: false, banker: false};
-      }
-    }
+  } else if(a==='lmin'){
+    hole.lmin=Number(v); if(hole.lmax<hole.lmin) hole.lmax=hole.lmin;
+    for(var i=0;i<G.players.length;i++){var pl=G.players[i];if(hole.wagers[pl]!=null&&(hole.wagers[pl]<hole.lmin||hole.wagers[pl]>hole.lmax)){hole.wagers[pl]=null;hole.press[pl]={player:false,banker:false};}}
     renderGame();
-  } else if (a === 'lmax') {
-    hole.lmax = Number(v);
-    if (hole.lmin > hole.lmax) hole.lmin = hole.lmax;
-    for (var i = 0; i < G.players.length; i++) {
-      var pl = G.players[i];
-      if (hole.wagers[pl] != null && (hole.wagers[pl] < hole.lmin || hole.wagers[pl] > hole.lmax)) {
-        hole.wagers[pl] = null; hole.press[pl] = {player: false, banker: false};
-      }
-    }
+  } else if(a==='lmax'){
+    hole.lmax=Number(v); if(hole.lmin>hole.lmax) hole.lmin=hole.lmax;
+    for(var i=0;i<G.players.length;i++){var pl=G.players[i];if(hole.wagers[pl]!=null&&(hole.wagers[pl]<hole.lmin||hole.wagers[pl]>hole.lmax)){hole.wagers[pl]=null;hole.press[pl]={player:false,banker:false};}}
     renderGame();
-  } else if (a === 'wager') {
-    hole.wagers[p] = Number(v);
-    hole.press[p] = {player: false, banker: false};
+  } else if(a==='wager'){
+    hole.wagers[p]=Number(v); hole.press[p]={player:false,banker:false}; renderGame();
+  } else if(a==='press'){
+    hole.press[p].player=!hole.press[p].player; renderGame();
+  } else if(a==='bpress'){
+    hole.press[p].banker=!hole.press[p].banker; renderGame();
+  } else if(a==='lock'){
+    hole.locked=true;
+    if(G.active<HOLES-1) G.active++;
     renderGame();
-  } else if (a === 'press') {
-    hole.press[p].player = !hole.press[p].player;
-    renderGame();
-  } else if (a === 'bpress') {
-    hole.press[p].banker = !hole.press[p].banker;
-    renderGame();
-  } else if (a === 'lock') {
-    hole.locked = true;
-    if (G.active < HOLES - 1) G.active++;
-    renderGame();
-    setTimeout(function() {
-      var nav = document.getElementById('hnav');
-      if (nav.children[G.active]) nav.children[G.active].scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
-    }, 100);
-  } else if (a === 'unlock') {
-    hole.locked = false;
-    renderGame();
+    setTimeout(function(){var nav=document.getElementById('hnav');if(nav.children[G.active])nav.children[G.active].scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});},100);
+  } else if(a==='unlock'){
+    hole.locked=false; renderGame();
   }
 });
 
-document.getElementById('hnav').addEventListener('click', function(e) {
-  var b = e.target.closest('.hn');
-  if (!b) return;
-  G.active = parseInt(b.dataset.hi);
-  renderGame();
+document.getElementById('hnav').addEventListener('click',function(e){
+  var b=e.target.closest('.hn'); if(!b) return;
+  G.active=parseInt(b.dataset.hi); renderGame();
 });
 
-document.addEventListener('input', function(e) {
-  if (!e.target.classList.contains('sinp')) return;
-  G.holes[G.active].strokes[e.target.dataset.p] = e.target.value;
+document.addEventListener('input',function(e){
+  if(!e.target.classList.contains('sinp')) return;
+  G.holes[G.active].strokes[e.target.dataset.p]=e.target.value;
   renderLB();
-  var hole = G.holes[G.active];
-  var nonB = G.players.filter(function(p) { return p !== hole.banker; });
-  var allW = !!hole.banker && nonB.every(function(p) { return hole.wagers[p] != null; });
-  var allS = !!hole.banker && G.players.every(function(p) { return String(hole.strokes[p]).trim() !== ''; });
-  var btn = document.querySelector('.lbtn');
-  if (btn) { btn.disabled = !(allW && allS); if (allW && allS) btn.textContent = 'Lock Hole ' + hole.hole; }
+  var hole=G.holes[G.active];
+  var nonB=G.players.filter(function(p){return p!==hole.banker;});
+  var allW=!!hole.banker&&nonB.every(function(p){return hole.wagers[p]!=null;});
+  var allS=!!hole.banker&&G.players.every(function(p){return String(hole.strokes[p]).trim()!=='';});
+  var btn=document.querySelector('.lbtn');
+  if(btn){btn.disabled=!(allW&&allS);if(allW&&allS)btn.textContent='Lock Hole '+hole.hole;}
 });
 
-function renderSummary() {
-  var t = calcTotals();
-  var sorted = G.players.slice().sort(function(a,b) { return t[b] - t[a]; });
-  var h = '';
-  for (var i = 0; i < sorted.length; i++) {
-    var p = sorted[i], v = t[p];
-    h += '<div class="smrow"><span class="smrk' + (i === 0 ? ' g' : '') + '">' + (i+1) + '</span>';
-    h += '<span class="smnm">' + p + '</span>';
-    h += '<span class="smam' + (v > 0 ? ' pos' : v < 0 ? ' neg' : '') + '">' + fmt(v) + '</span></div>';
+function renderSummary(){
+  var t=calcTotals(),sorted=G.players.slice().sort(function(a,b){return t[b]-t[a];});
+  var h='';
+  for(var i=0;i<sorted.length;i++){var p=sorted[i],v=t[p];h+='<div class="smrow"><span class="smrk'+(i===0?' g':'')+'">'+( i+1)+'</span><span class="smnm">'+p+'</span><span class="smam'+(v>0?' pos':v<0?' neg':'')+'">'+fmt(v)+'</span></div>';}
+  document.getElementById('smcard').innerHTML=h;
+  var lh=G.holes.filter(function(h){return h.locked;}),lh2='<div class="logt">HOLE BY HOLE</div>';
+  for(var i=0;i<lh.length;i++){
+    var hole=lh[i],r=calcResult(hole);
+    lh2+='<div class="logr"><div class="logrh"><span class="lrh">H'+hole.hole+'</span><span class="lrb">🏦 '+hole.banker+'</span><span class="lrl">$'+hole.lmin+'-$'+hole.lmax+'</span></div><div class="lrres">';
+    for(var j=0;j<G.players.length;j++){var p=G.players[j],v=r?(r[p]||0):0;lh2+='<span class="lrc '+(v>0?'pos':v<0?'neg':'zero')+'">'+p+': '+fmt(v)+'</span>';}
+    lh2+='</div></div>';
   }
-  document.getElementById('smcard').innerHTML = h;
-  var lh = G.holes.filter(function(h) { return h.locked; });
-  var lh2 = '<div class="logt">HOLE BY HOLE</div>';
-  for (var i = 0; i < lh.length; i++) {
-    var hole = lh[i], r = calcResult(hole);
-    lh2 += '<div class="logr"><div class="logrh"><span class="lrh">H' + hole.hole + '</span><span class="lrb">🏦 ' + hole.banker + '</span><span class="lrl">$' + hole.lmin + '-$' + hole.lmax + '</span></div><div class="lrres">';
-    for (var j = 0; j < G.players.length; j++) {
-      var p = G.players[j], v = r ? (r[p] || 0) : 0;
-      lh2 += '<span class="lrc ' + (v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero') + '">' + p + ': ' + fmt(v) + '</span>';
-    }
-    lh2 += '</div></div>';
-  }
-  document.getElementById('smlog').innerHTML = lh2;
+  document.getElementById('smlog').innerHTML=lh2;
 }
 
-// Init
-document.getElementById('teeup').addEventListener('click', startGame);
-document.getElementById('sumbtn').addEventListener('click', function() { showScreen('SM'); renderSummary(); });
-document.getElementById('backbtn').addEventListener('click', function() { showScreen('G'); renderGame(); });
-document.getElementById('newbtn').addEventListener('click', function() { showScreen('S'); });
+document.getElementById('teeup').addEventListener('click',startGame);
+document.getElementById('sumbtn').addEventListener('click',function(){showScreen('summary');renderSummary();});
+document.getElementById('backbtn').addEventListener('click',function(){showScreen('game');renderGame();});
+document.getElementById('newbtn').addEventListener('click',function(){showScreen('setup');});
 
-var cp = document.getElementById('cpills');
-cp.innerHTML = [3,4,5].map(function(n) {
-  return '<button class="cpill' + (n === 3 ? ' on' : '') + '" data-n="' + n + '">' + n + '</button>';
-}).join('');
-cp.addEventListener('click', function(e) {
-  var b = e.target.closest('.cpill');
-  if (b) setCount(parseInt(b.dataset.n));
-});
+var cp=document.getElementById('cpills');
+cp.innerHTML=[3,4,5].map(function(n){return'<button class="cpill'+(n===3?' on':'')+'" data-n="'+n+'">'+n+'</button>';}).join('');
+cp.addEventListener('click',function(e){var b=e.target.closest('.cpill');if(b)setCount(parseInt(b.dataset.n));});
 
-G.count = 3;
+G.count=3;
 buildInputs();
 </script>
 </body>
