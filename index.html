@@ -24,7 +24,7 @@
     #game.active{display:flex;flex-direction:column}
 
     #summary{background:linear-gradient(160deg,var(--dark) 0%,#1a3d24 70%);min-height:100vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
-    #summary.active{display:flex;flex-direction:column;align-items:center;padding:36px 16px 60px;gap:20px}
+    #summary.active{display:flex;flex-direction:column;align-items:center;padding:36px 16px 100px;gap:20px;overflow-y:auto;-webkit-overflow-scrolling:touch;height:100vh}
 
     .logo-i{font-size:36px;text-align:center}
     .logo-t{font-family:'Bebas Neue',sans-serif;font-size:52px;color:var(--gold);letter-spacing:6px;line-height:1;text-align:center}
@@ -156,14 +156,14 @@
 <body>
 
 <div id="setup" class="screen active">
-  <div><div class="logo-i">⛳</div><div class="logo-t">BANKER</div></div>
+  <div><div class="logo-i">⛳</div><div class="logo-t" style="font-size:38px;letter-spacing:3px">ROLLING GREEN BANKER</div></div>
   <div class="card">
     <div>
       <label class="flbl">Number of Players</label>
       <div class="cpills" id="cpills"></div>
     </div>
     <div>
-      <label class="flbl">Player Names &amp; Handicap Index</label>
+      <label class="flbl">Player Names &amp; # of Strokes</label>
       <div id="ninputs"></div>
     </div>
     <button class="teeup" id="teeup" disabled>Tee It Up →</button>
@@ -195,12 +195,12 @@
 <script>
 var HOLES = 18;
 var BETS = [5,10,15,20,25,30,40,50,75,100];
-var COURSE = {rating:72.6,slope:137,par:72,holes:[
-  {h:1,par:4,si:13},{h:2,par:5,si:1},{h:3,par:4,si:9},{h:4,par:4,si:11},
-  {h:5,par:3,si:7},{h:6,par:5,si:3},{h:7,par:3,si:17},{h:8,par:4,si:15},
-  {h:9,par:4,si:5},{h:10,par:4,si:6},{h:11,par:3,si:16},{h:12,par:4,si:10},
+var COURSE = {rating:71.3,slope:134,par:72,holes:[
+  {h:1,par:4,si:9},{h:2,par:5,si:13},{h:3,par:4,si:3},{h:4,par:4,si:7},
+  {h:5,par:3,si:11},{h:6,par:5,si:1},{h:7,par:3,si:17},{h:8,par:4,si:15},
+  {h:9,par:4,si:5},{h:10,par:4,si:4},{h:11,par:3,si:16},{h:12,par:4,si:10},
   {h:13,par:4,si:8},{h:14,par:5,si:2},{h:15,par:5,si:14},{h:16,par:4,si:18},
-  {h:17,par:3,si:12},{h:18,par:4,si:4}
+  {h:17,par:3,si:12},{h:18,par:4,si:6}
 ]};
 
 var G = {players:[],count:3,holes:[],active:0,hdcp:{},chdcp:{}};
@@ -208,7 +208,8 @@ var G = {players:[],count:3,holes:[],active:0,hdcp:{},chdcp:{}};
 function fmt(v){return v===0?'E':(v>0?'+$':'-$')+Math.abs(v);}
 
 function courseHdcp(idx){
-  return Math.round(idx*(COURSE.slope/113)+(COURSE.rating-COURSE.par));
+  // Player enters strokes directly - no conversion needed
+  return Math.round(idx);
 }
 
 // Par 3 = 3x press, Par 4/5 = 2x press
@@ -301,8 +302,8 @@ function buildInputs(){
     ni.value=en[i]||''; ni.autocomplete='off';
     ni.addEventListener('input',chkValid);
     var hi=document.createElement('input');
-    hi.type='number'; hi.className='hi'; hi.placeholder='Hdcp';
-    hi.min='0'; hi.max='54'; hi.step='0.1';
+    hi.type='number'; hi.className='hi'; hi.placeholder='Strokes';
+    hi.min='0'; hi.max='36'; hi.step='1';
     hi.value=eh[i]||'';
     hi.addEventListener('input',chkValid);
     row.appendChild(ni); row.appendChild(hi);
