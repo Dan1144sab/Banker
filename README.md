@@ -1,2 +1,2 @@
 index.html
-Golf wager App
+Golf wager App 
