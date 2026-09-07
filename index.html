@@ -84,7 +84,7 @@
     .liml{display:block;font-size:10px;font-weight:700;color:var(--muted);margin-bottom:5px;letter-spacing:1px}
     .limdiv{padding-top:22px;font-size:12px;color:var(--muted)}
     .lpills{display:flex;flex-wrap:wrap;gap:4px}
-    .lp{padding:5px 8px;border:1.5px solid var(--border);background:white;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;color:var(--muted);font-family:'DM Sans',sans-serif}
+    .lp{padding:4px 6px;border:1.5px solid var(--border);background:white;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;color:var(--muted);font-family:'DM Sans',sans-serif;min-width:38px;text-align:center}
     .lp.on{border-color:var(--green);background:var(--green);color:white}
     .limsum{margin-top:8px;font-size:11px;color:var(--muted);background:#f7f3ea;border-radius:7px;padding:6px 9px}
 
@@ -92,7 +92,7 @@
     .wrow:last-child{margin-bottom:0}
     .wnm{font-weight:600;font-size:13px;min-width:60px}
     .wpills{display:flex;flex-wrap:wrap;gap:4px}
-    .wp{padding:6px 8px;border:1.5px solid var(--border);background:white;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;color:var(--muted);font-family:'DM Sans',sans-serif}
+    .wp{padding:5px 7px;border:1.5px solid var(--border);background:white;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;color:var(--muted);font-family:'DM Sans',sans-serif;min-width:40px;text-align:center}
     .wp.on{border-color:var(--gold);background:var(--gold);color:var(--dark)}
 
     .prows{display:flex;flex-direction:column}
@@ -138,6 +138,14 @@
     .smam{font-family:'Bebas Neue',sans-serif;font-size:28px}
     .smam.pos{color:var(--win)}.smam.neg{color:var(--loss)}
     .smlog{width:100%;max-width:440px}
+    .smstats{width:100%;max-width:440px;background:rgba(255,255,255,0.06);border-radius:14px;padding:6px 16px}
+    .stt{font-family:'Bebas Neue',sans-serif;color:rgba(255,255,255,0.45);font-size:15px;letter-spacing:2px;text-align:center;padding:10px 0 6px}
+    .strow{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.08)}
+    .strow:last-child{border-bottom:none}
+    .stl{font-size:11px;color:rgba(255,255,255,0.45);flex:1;line-height:1.4}
+    .stv{text-align:right;flex-shrink:0}
+    .stvn{font-weight:600;font-size:14px;color:white;display:block}
+    .stvs{font-size:11px;color:var(--goldk);display:block;margin-top:1px}
     .logt{font-family:'Bebas Neue',sans-serif;color:rgba(255,255,255,0.4);font-size:15px;letter-spacing:2px;text-align:center;margin-bottom:6px}
     .logr{background:rgba(255,255,255,0.06);border-radius:9px;padding:9px 12px;margin-bottom:5px}
     .logrh{display:flex;align-items:center;gap:8px;margin-bottom:5px}
@@ -185,6 +193,7 @@
 <div id="summary" class="screen">
   <div class="smtitle">🏆 Final Scores</div>
   <div id="smcard" class="smcard"></div>
+  <div id="smstats" class="smstats"></div>
   <div id="smlog" class="smlog"></div>
   <div class="smbrow">
     <button class="smbtn" id="backbtn">← Back</button>
@@ -194,7 +203,7 @@
 
 <script>
 var HOLES = 18;
-var BETS = [5,10,15,20,25,30,40,50,75,100];
+var BETS = [5,10,15,20,25,30,40,50,75,100,125,150,175,200,250,300,350,400,450,500];
 var COURSE = {rating:71.3,slope:134,par:72,holes:[
   {h:1,par:4,si:9},{h:2,par:5,si:13},{h:3,par:4,si:3},{h:4,par:4,si:7},
   {h:5,par:3,si:11},{h:6,par:5,si:1},{h:7,par:3,si:17},{h:8,par:4,si:15},
@@ -515,7 +524,52 @@ function renderSummary(){
   var h='';
   for(var i=0;i<sorted.length;i++){var p=sorted[i],v=t[p];h+='<div class="smrow"><span class="smrk'+(i===0?' g':'')+'">'+( i+1)+'</span><span class="smnm">'+p+'</span><span class="smam'+(v>0?' pos':v<0?' neg':'')+'">'+fmt(v)+'</span></div>';}
   document.getElementById('smcard').innerHTML=h;
-  var lh=G.holes.filter(function(h){return h.locked;}),lh2='<div class="logt">HOLE BY HOLE</div>';
+
+  // ---- Betting stats ----
+  var lh=G.holes.filter(function(x){return x.locked;});
+  var totalBet={}, bankRisk={}, bankHoles={}, biggest={amt:0,who:null,hole:null}, topLimit={amt:0,who:null,hole:null}, anyBets=false;
+  for(var i=0;i<G.players.length;i++){totalBet[G.players[i]]=0;bankRisk[G.players[i]]=0;bankHoles[G.players[i]]=0;}
+  for(var i=0;i<lh.length;i++){
+    var hole=lh[i], hi=hole.hole-1, holeExp=0;
+    if(hole.lmax>topLimit.amt){topLimit={amt:hole.lmax,who:hole.banker,hole:hole.hole};}
+    for(var j=0;j<G.players.length;j++){
+      var p=G.players[j];
+      if(p===hole.banker||hole.wagers[p]==null) continue;
+      var fw=finalWager(hole.wagers[p],hole.press[p],hi);
+      totalBet[p]+=fw; holeExp+=fw; anyBets=true;
+      if(fw>biggest.amt){biggest={amt:fw,who:p,hole:hole.hole};}
+    }
+    if(hole.banker){bankRisk[hole.banker]+=holeExp;bankHoles[hole.banker]++;}
+  }
+  var sh='<div class="stt">BETTING STATS</div>';
+  if(anyBets){
+    var bigSpender=G.players.slice().sort(function(a,b){return totalBet[b]-totalBet[a];})[0];
+    sh+='<div class="strow"><span class="stl">Most wagered<br>(total risked across the round)</span>'
+      + '<span class="stv"><span class="stvn">'+bigSpender+'</span><span class="stvs">$'+totalBet[bigSpender]+'</span></span></div>';
+    sh+='<div class="strow"><span class="stl">Biggest single bet<br>(after presses)</span>'
+      + '<span class="stv"><span class="stvn">'+biggest.who+'</span><span class="stvs">$'+biggest.amt+' on hole '+biggest.hole+'</span></span></div>';
+    sh+='<div class="strow"><span class="stl">Highest limit offered<br>(by the banker)</span>'
+      + '<span class="stv"><span class="stvn">'+topLimit.who+'</span><span class="stvs">$'+topLimit.amt+' on hole '+topLimit.hole+'</span></span></div>';
+    var bigBanker=G.players.slice().sort(function(a,b){return bankRisk[b]-bankRisk[a];})[0];
+    sh+='<div class="strow"><span class="stl">Most risked as banker<br>(total covered across the round)</span>'
+      + '<span class="stv"><span class="stvn">'+bigBanker+'</span><span class="stvs">$'+bankRisk[bigBanker]+' over '+bankHoles[bigBanker]+' hole'+(bankHoles[bigBanker]===1?'':'s')+'</span></span></div>';
+    sh+='<div class="strow"><span class="stl">Total risked as banker</span><span class="stv">'
+      + G.players.slice().sort(function(a,b){return bankRisk[b]-bankRisk[a];}).map(function(p){
+          return '<span class="stvn" style="font-weight:500;font-size:13px">'+p+' &nbsp;<span style="color:var(--goldk)">$'+bankRisk[p]+'</span></span>';
+        }).join('')
+      + '</span></div>';
+    sh+='<div class="strow"><span class="stl">Total wagered by player</span><span class="stv">'
+      + G.players.slice().sort(function(a,b){return totalBet[b]-totalBet[a];}).map(function(p){
+          return '<span class="stvn" style="font-weight:500;font-size:13px">'+p+' &nbsp;<span style="color:var(--goldk)">$'+totalBet[p]+'</span></span>';
+        }).join('')
+      + '</span></div>';
+  } else {
+    sh+='<div class="strow"><span class="stl">No holes locked yet.</span></div>';
+  }
+  document.getElementById('smstats').innerHTML=sh;
+
+  // ---- Hole by hole ----
+  var lh2='<div class="logt">HOLE BY HOLE</div>';
   for(var i=0;i<lh.length;i++){
     var hole=lh[i],r=calcResult(hole);
     lh2+='<div class="logr"><div class="logrh"><span class="lrh">H'+hole.hole+'</span><span class="lrb">🏦 '+hole.banker+'</span><span class="lrl">$'+hole.lmin+'-$'+hole.lmax+'</span></div><div class="lrres">';
