@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Banker Logic Tests</title>
+<style>
+  body{font-family:-apple-system,sans-serif;background:#0f1e13;color:#f7f3ea;padding:24px;max-width:720px;margin:0 auto}
+  h1{color:#c9a84c}
+  #summary{font-size:18px;font-weight:700;margin-bottom:16px}
+  .pass{color:#4ade80}
+  .fail{color:#f87171}
+  .case{padding:8px 12px;border-radius:8px;margin-bottom:4px;background:rgba(255,255,255,0.05)}
+  .case.fail{background:rgba(220,38,38,0.15)}
+  .msg{font-size:13px;color:rgba(255,255,255,0.6);margin-top:4px;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<h1>Banker Logic Tests</h1>
+<div id="summary">Running…</div>
+<div id="results"></div>
+
+<script src="banker-logic.js"></script>
+<script>
+var tests=[];
+function test(name,fn){tests.push({name:name,fn:fn});}
+
+function assertEqual(actual,expected,label){
+  var a=JSON.stringify(actual),e=JSON.stringify(expected);
+  if(a!==e) throw new Error((label?label+': ':'')+'expected '+e+' but got '+a);
+}
+function assertTrue(cond,label){
+  if(!cond) throw new Error(label||'expected true');
+}
+
+// ---- courseHdcp / netHandicaps ----
+test('courseHdcp rounds Index x Slope/113 + (Rating-Par)',function(){
+  var tee={rating:71.3,slope:134};
+  assertEqual(courseHdcp(12.0,tee),14);
+  assertEqual(courseHdcp(3.1,tee),3);
+  assertEqual(courseHdcp(21.0,tee),24);
+});
+
+test('courseHdcp accepts an explicit par override',function(){
+  var tee={rating:72.6,slope:137};
+  assertEqual(courseHdcp(21.0,tee,70),28);
+});
+
+test('netHandicaps nets everyone down to the low player (scratch = 0)',function(){
+  var tee={rating:71.3,slope:134};
+  var net=netHandicaps([12.0,3.1,21.0],tee);
+  assertEqual(net,[11,0,21]);
+});
+
+test('netHandicaps par term cancels out so par does not affect the net',function(){
+  var tee={rating:72.6,slope:137};
+  var netPar72=netHandicaps([12.0,3.1,21.0],tee,72);
+  var netPar70=netHandicaps([12.0,3.1,21.0],tee,70);
+  assertEqual(netPar72,netPar70);
+});
+
+// ---- applyHandicaps: the real wiring startGame() uses ----
+// This exercises the exact function startGame() calls, not a re-implementation
+// of it — confirming the computed NET is consumed by getStrokes/calcResult
+// exactly like the old directly-typed "Strokes" field used to be.
+test('applyHandicaps wires NET into G.chdcp, same as the old directly-typed Strokes field',function(){
+  var tee={rating:71.3,slope:134};
+  var players=['Garrett','Dan','Ann'];
+  var indexes=[12.0,3.1,21.0];
+  var net=applyHandicaps(players,indexes,tee);
+  assertEqual(net,[11,0,21]);
+  assertEqual(G.chdcp,{Garrett:11,Dan:0,Ann:21},'G.chdcp must equal the NET values shown on the setup screen');
+
+  // hole index 0 -> SI 9 (see COURSE.holes[0])
+  assertEqual(getStrokes('Garrett',0),1,'11 >= SI 9 -> a stroke, exactly as if "11" had been typed directly into the old Strokes field');
+  assertEqual(getStrokes('Dan',0),0,'the netted-to-zero low player gets no strokes');
+  assertEqual(getStrokes('Ann',0),1,'21 >= SI 9 -> one stroke (a second only kicks in at 18+SI=27)');
+
+  G.players=players;
+  var hole={hole:1,banker:'Dan',
+    wagers:{Garrett:10,Ann:10},
+    press:{Garrett:{player:false,banker:false},Ann:{player:false,banker:false}},
+    strokes:{Dan:4,Garrett:5,Ann:5}};
+  var res=calcResult(hole);
+  // Dan(banker) net=4-0=4. Garrett net=5-1=4 and Ann net=5-1=4: both push.
+  assertEqual(res.Garrett,0,'the stroke brings Garrett level with the banker: push');
+  assertEqual(res.Ann,0,'the stroke brings Ann level with the banker: push');
+  assertEqual(res.Dan,0);
+});
+
+// ---- holeMult / calcMult / finalWager ----
+test('holeMult is 3x on par 3s and 2x otherwise',function(){
+  assertEqual(holeMult(4),3); // hole index 4 = hole 5, par 3
+  assertEqual(holeMult(0),2); // hole index 0 = hole 1, par 4
+});
+
+test('calcMult compounds player press and banker press multipliers',function(){
+  assertEqual(calcMult({player:false,banker:false},0),1);
+  assertEqual(calcMult({player:true,banker:false},0),2);
+  assertEqual(calcMult({player:true,banker:true},0),4);
+  assertEqual(calcMult({player:false,banker:true},4),3); // banker press alone still multiplies (par3 = 3x)
+});
+
+test('finalWager multiplies the base wager by the press multiplier',function(){
+  assertEqual(finalWager(10,{player:true,banker:false},0),20);
+  assertEqual(finalWager(10,{player:true,banker:true},4),90); // par3: 3x3=9
+});
+
+// ---- getStrokes (depends on G.chdcp) ----
+test('getStrokes gives one stroke once course handicap reaches the hole\'s SI',function(){
+  G.chdcp={A:9,B:8,C:0};
+  assertEqual(getStrokes('A',0),1); // hole index 0 = SI 9
+  assertEqual(getStrokes('B',0),0);
+  assertEqual(getStrokes('C',0),0);
+});
+
+test('getStrokes gives a second stroke once handicap passes 18+SI',function(){
+  G.chdcp={A:27};
+  assertEqual(getStrokes('A',0),2); // SI 9: 27 >= 9 and >= 18+9
+});
+
+// ---- calcResult ----
+test('calcResult is zero-sum across all players',function(){
+  G.players=['Banker','P1','P2'];
+  G.chdcp={Banker:0,P1:0,P2:0};
+  var hole={hole:1,banker:'Banker',
+    wagers:{Banker:null,P1:10,P2:10},
+    press:{Banker:{player:false,banker:false},P1:{player:false,banker:false},P2:{player:false,banker:false}},
+    strokes:{Banker:4,P1:5,P2:3}};
+  var res=calcResult(hole);
+  var sum=res.Banker+res.P1+res.P2;
+  assertEqual(sum,0,'sum of all results');
+  assertEqual(res.P1,-10,'banker beat P1 (4 vs 5), P1 pays');
+  assertEqual(res.P2,10,'P2 beat banker (3 vs 4), banker pays P2');
+  assertEqual(res.Banker,0,'banker nets 0 (won 10 from P1, lost 10 to P2)');
+});
+
+test('calcResult applies strokes before comparing net scores',function(){
+  G.players=['Banker','P1'];
+  G.chdcp={Banker:0,P1:9}; // P1 gets a stroke on SI 9 (hole index 0)
+  var hole={hole:1,banker:'Banker',
+    wagers:{Banker:null,P1:10},
+    press:{Banker:{player:false,banker:false},P1:{player:false,banker:false}},
+    strokes:{Banker:4,P1:5}}; // P1 net = 5-1 = 4, ties banker's 4
+  var res=calcResult(hole);
+  assertEqual(res.P1,0,'push after stroke is applied');
+  assertEqual(res.Banker,0);
+});
+
+test('calcResult returns null when the banker has not entered a score',function(){
+  G.players=['Banker','P1'];
+  G.chdcp={Banker:0,P1:0};
+  var hole={hole:1,banker:'Banker',wagers:{P1:10},press:{P1:{player:false,banker:false}},strokes:{Banker:'',P1:5}};
+  assertEqual(calcResult(hole),null);
+});
+
+// ---- calcTotals ----
+test('calcTotals sums results only across locked holes',function(){
+  G.players=['Banker','P1'];
+  G.chdcp={Banker:0,P1:0};
+  G.holes=[
+    {hole:1,banker:'Banker',locked:true,
+      wagers:{P1:10},press:{P1:{player:false,banker:false}},strokes:{Banker:4,P1:5}},
+    {hole:2,banker:'Banker',locked:false,
+      wagers:{P1:50},press:{P1:{player:false,banker:false}},strokes:{Banker:3,P1:9}}
+  ];
+  var t=calcTotals();
+  assertEqual(t.P1,-10,'only hole 1 (locked) counts, P1 lost to banker 4 vs 5');
+  assertEqual(t.Banker,10);
+});
+
+// ---- initHoles ----
+test('initHoles builds 18 unlocked holes with blank wagers/scores for each player',function(){
+  var holes=initHoles(['A','B']);
+  assertEqual(holes.length,HOLES);
+  assertEqual(holes[0].locked,false);
+  assertEqual(holes[0].banker,null);
+  assertEqual(holes[0].wagers,{A:null,B:null});
+  assertEqual(holes[0].strokes,{A:'',B:''});
+});
+
+// ---- fmt ----
+test('fmt formats signed dollar amounts, zero as E',function(){
+  assertEqual(fmt(0),'E');
+  assertEqual(fmt(25),'+$25');
+  assertEqual(fmt(-25),'-$25');
+});
+
+// ---- runner ----
+var pass=0,fail=0;
+var out=document.getElementById('results');
+tests.forEach(function(t){
+  var div=document.createElement('div');
+  try{
+    t.fn();
+    pass++;
+    div.className='case pass';
+    div.innerHTML='<span class="pass">✓</span> '+t.name;
+  }catch(e){
+    fail++;
+    div.className='case fail';
+    div.innerHTML='<span class="fail">✗</span> '+t.name+'<div class="msg">'+e.message+'</div>';
+  }
+  out.appendChild(div);
+});
+document.getElementById('summary').innerHTML=
+  '<span class="'+(fail?'fail':'pass')+'">'+pass+' passed, '+fail+' failed</span> ('+tests.length+' total)';
+document.title=(fail?'✗ FAIL':'✓ PASS')+' — Banker Logic Tests';
+</script>
+</body>
+</html>

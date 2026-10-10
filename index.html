@@ -33,13 +33,22 @@
     .cpills{display:flex;gap:8px}
     .cpill{flex:1;padding:9px;border:2px solid var(--border);background:white;border-radius:10px;font-family:'DM Sans',sans-serif;font-weight:600;font-size:16px;cursor:pointer;color:var(--muted)}
     .cpill.on{border-color:var(--green);background:var(--green);color:white}
+    .coursebtn{display:flex;border:2px solid var(--border);border-radius:14px;overflow:hidden;height:114px}
+    .coursebtn-half{flex:1;border:none;background:white;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:'DM Sans',sans-serif;font-weight:600;font-size:16px;color:var(--muted)}
+    .coursebtn-half+.coursebtn-half{border-left:2px solid var(--border)}
+    .coursebtn-half.on{background:var(--green);color:white}
+    .courselogo{height:90px;width:auto;max-width:100%;object-fit:contain}
+    .coursebtn-half.on .courselogo{filter:brightness(0) invert(1)}
     .prow{display:flex;gap:8px;margin-bottom:6px}
-    .ni{flex:1;padding:10px 12px;border:2px solid var(--border);border-radius:10px;font-size:16px;background:white;color:var(--txt);-webkit-appearance:none;margin:0;font-family:'DM Sans',sans-serif}
+    .ni{flex:1;min-width:0;padding:10px 12px;border:2px solid var(--border);border-radius:10px;font-size:16px;background:white;color:var(--txt);-webkit-appearance:none;margin:0;font-family:'DM Sans',sans-serif}
     .ni:focus{outline:none;border-color:var(--green)}
     .hi{width:72px;padding:10px 6px;border:2px solid var(--border);border-radius:10px;font-size:16px;background:white;color:var(--txt);-webkit-appearance:none;text-align:center;flex-shrink:0;font-family:'DM Sans',sans-serif}
     .hi:focus{outline:none;border-color:var(--green)}
     .teeup{width:100%;padding:14px;background:var(--green);color:white;border:none;border-radius:12px;font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;cursor:pointer}
     .teeup:disabled{opacity:0.4}
+    .hres{width:46px;flex-shrink:0;font-size:16px;font-weight:700;color:var(--muted);text-align:center;align-self:center}
+    .hres.netres{color:var(--green)}
+    .pmbtn{width:40px;height:40px;flex-shrink:0;border-radius:10px;border:2px solid var(--border);background:white;font-size:20px;font-weight:700;color:var(--green);cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center}
 
     .topbar{background:var(--dark);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;padding-top:max(14px,env(safe-area-inset-top))}
     .gtitle{font-family:'Bebas Neue',sans-serif;color:var(--gold);font-size:26px;letter-spacing:3px}
@@ -167,11 +176,42 @@
   <div><div class="logo-i">⛳</div><div class="logo-t" style="font-size:38px;letter-spacing:3px">ROLLING GREEN BANKER</div></div>
   <div class="card">
     <div>
-      <label class="flbl">Number of Players</label>
-      <div class="cpills" id="cpills"></div>
+      <label class="flbl">Course</label>
+      <div class="coursebtn" id="coursepills">
+        <button class="coursebtn-half on" data-course="home"><img class="courselogo" src="rg.png" alt="Rolling Green CC"></button>
+        <button class="coursebtn-half" data-course="away">Away</button>
+      </div>
+    </div>
+    <div id="teesection">
+      <label class="flbl">Tees</label>
+      <div class="cpills" id="teepills">
+        <button class="cpill on" data-tee="white">White</button>
+        <button class="cpill" data-tee="blue">Blue</button>
+      </div>
+      <div id="teeinfo" style="font-size:12px;color:var(--muted);margin-top:6px;text-align:center"></div>
+    </div>
+    <div id="awaysection" style="display:none">
+      <label class="flbl">Rating &amp; Slope</label>
+      <div class="prow">
+        <input type="number" step="0.1" class="ni" id="awayrating" placeholder="Rating">
+        <input type="number" step="1" class="ni" id="awayslope" placeholder="Slope">
+      </div>
+    </div>
+    <div style="text-align:center">
+      <label class="flbl" style="text-align:center">Number of Players</label>
+      <div style="display:flex;align-items:center;justify-content:center;gap:10px">
+        <button type="button" class="pmbtn" id="pcminus">−</button>
+        <input type="number" class="hi" id="playercount" min="2" max="6" step="1" value="4">
+        <button type="button" class="pmbtn" id="pcplus">+</button>
+      </div>
     </div>
     <div>
-      <label class="flbl">Player Names &amp; # of Strokes</label>
+      <div class="prow" style="margin-bottom:2px">
+        <span class="flbl" style="flex:1;margin-bottom:0">Player Names</span>
+        <span class="flbl" style="width:72px;flex-shrink:0;margin-bottom:0;text-align:center">Index</span>
+        <span class="flbl" style="width:46px;flex-shrink:0;margin-bottom:0;text-align:center">Hcp</span>
+        <span class="flbl" style="width:46px;flex-shrink:0;margin-bottom:0;text-align:center">Net</span>
+      </div>
       <div id="ninputs"></div>
     </div>
     <button class="teeup" id="teeup" disabled>Tee It Up →</button>
@@ -201,98 +241,53 @@
   </div>
 </div>
 
+<script src="banker-logic.js"></script>
 <script>
-var HOLES = 18;
-var BETS = [5,10,15,20,25,30,40,50,75,100,125,150,175,200,250,300,350,400,450,500];
-var COURSE = {rating:71.3,slope:134,par:72,holes:[
-  {h:1,par:4,si:9},{h:2,par:5,si:13},{h:3,par:4,si:3},{h:4,par:4,si:7},
-  {h:5,par:3,si:11},{h:6,par:5,si:1},{h:7,par:3,si:17},{h:8,par:4,si:15},
-  {h:9,par:4,si:5},{h:10,par:4,si:4},{h:11,par:3,si:16},{h:12,par:4,si:10},
-  {h:13,par:4,si:8},{h:14,par:5,si:2},{h:15,par:5,si:14},{h:16,par:4,si:18},
-  {h:17,par:3,si:12},{h:18,par:4,si:6}
-]};
-
-var G = {players:[],count:3,holes:[],active:0,hdcp:{},chdcp:{}};
-
-function fmt(v){return v===0?'E':(v>0?'+$':'-$')+Math.abs(v);}
-
-function courseHdcp(idx){
-  // Player enters strokes directly - no conversion needed
-  return Math.round(idx);
-}
-
-// Par 3 = 3x press, Par 4/5 = 2x press
-function holeMult(hi){
-  return COURSE.holes[hi].par===3?3:2;
-}
-
-function calcMult(press,hi){
-  var pm=press.player?holeMult(hi):1;
-  return press.banker?pm*holeMult(hi):pm;
-}
-
-function finalWager(base,press,hi){
-  return base*calcMult(press,hi);
-}
-
-function getStrokes(player,hi){
-  var ch=G.chdcp[player]||0,si=COURSE.holes[hi].si,s=0;
-  if(ch>=si) s++;
-  if(ch>=18+si) s++;
-  return s;
-}
-
-function initHoles(players){
-  var arr=[];
-  for(var i=0;i<HOLES;i++){
-    var w={},pr={},sc={};
-    for(var j=0;j<players.length;j++){
-      w[players[j]]=null;
-      pr[players[j]]={player:false,banker:false};
-      sc[players[j]]='';
-    }
-    arr.push({hole:i+1,banker:null,lmin:5,lmax:50,wagers:w,press:pr,strokes:sc,locked:false});
+function activeTee(){
+  if(G.course==='away'){
+    var r=parseFloat(document.getElementById('awayrating').value),
+        s=parseFloat(document.getElementById('awayslope').value);
+    return {rating:isNaN(r)?COURSE.rating:r, slope:isNaN(s)?COURSE.slope:s};
   }
-  return arr;
+  return TEES[G.tee];
 }
 
-function calcResult(hole){
-  if(!hole.banker) return null;
-  var hi=hole.hole-1;
-  var bs=Number(hole.strokes[hole.banker]);
-  if(!bs) return null;
-  var bnet=bs-getStrokes(hole.banker,hi);
-  var res={},bn=0;
-  for(var i=0;i<G.players.length;i++){
-    var p=G.players[i];
-    if(p===hole.banker) continue;
-    var ps=Number(hole.strokes[p]);
-    if(!ps||hole.wagers[p]==null) continue;
-    var pnet=ps-getStrokes(p,hi);
-    var fw=finalWager(hole.wagers[p],hole.press[p],hi);
-    var diff=bnet-pnet;
-    var amt=diff>0?fw:diff<0?-fw:0;
-    res[p]=amt; bn-=amt;
-  }
-  res[hole.banker]=bn;
-  return res;
+function renderCourseUI(){
+  var btns=document.querySelectorAll('#coursepills .coursebtn-half');
+  for(var i=0;i<btns.length;i++) btns[i].classList.toggle('on',btns[i].dataset.course===G.course);
+  document.getElementById('teesection').style.display=G.course==='away'?'none':'block';
+  document.getElementById('awaysection').style.display=G.course==='away'?'block':'none';
+  renderTeeInfo();
 }
 
-function calcTotals(){
-  var t={};
-  for(var i=0;i<G.players.length;i++) t[G.players[i]]=0;
-  for(var i=0;i<G.holes.length;i++){
-    var h=G.holes[i]; if(!h.locked) continue;
-    var r=calcResult(h); if(!r) continue;
-    for(var j=0;j<G.players.length;j++) t[G.players[j]]+=(r[G.players[j]]||0);
+function renderTeeInfo(){
+  var btns=document.querySelectorAll('#teepills .cpill');
+  for(var i=0;i<btns.length;i++) btns[i].classList.toggle('on',btns[i].dataset.tee===G.tee);
+  var t=TEES[G.tee];
+  document.getElementById('teeinfo').textContent='Rating '+t.rating+' · Slope '+t.slope;
+}
+
+function updateLiveHandicaps(){
+  var rows=document.querySelectorAll('#ninputs .prow');
+  var tee=activeTee();
+  var idx=[],validIdx=[],validPos=[];
+  for(var i=0;i<rows.length;i++){
+    var v=parseFloat(rows[i].querySelector('.hi').value);
+    idx.push(isNaN(v)?null:v);
+    if(!isNaN(v)){validIdx.push(v);validPos.push(i);}
   }
-  return t;
+  var net=validIdx.length?netHandicaps(validIdx,tee):[];
+  for(var i=0;i<rows.length;i++){
+    var hcpres=rows[i].querySelector('.hcpres'),netres=rows[i].querySelector('.netres');
+    var pos=validPos.indexOf(i);
+    if(pos===-1){hcpres.textContent='';netres.textContent='';continue;}
+    hcpres.textContent=courseHdcp(idx[i],tee);
+    netres.textContent=net[pos]===0?'0':'+'+net[pos];
+  }
 }
 
 function setCount(n){
   G.count=n;
-  var btns=document.querySelectorAll('.cpill');
-  for(var i=0;i<btns.length;i++) btns[i].classList.toggle('on',parseInt(btns[i].dataset.n)===n);
   buildInputs();
 }
 
@@ -311,33 +306,44 @@ function buildInputs(){
     ni.value=en[i]||''; ni.autocomplete='off';
     ni.addEventListener('input',chkValid);
     var hi=document.createElement('input');
-    hi.type='number'; hi.className='hi'; hi.placeholder='Strokes';
-    hi.min='0'; hi.max='36'; hi.step='1';
+    hi.type='number'; hi.className='hi'; hi.placeholder='Index';
+    hi.min='-10'; hi.max='45'; hi.step='0.1';
     hi.value=eh[i]||'';
-    hi.addEventListener('input',chkValid);
-    row.appendChild(ni); row.appendChild(hi);
+    hi.addEventListener('input',function(){chkValid();updateLiveHandicaps();});
+    var hcpres=document.createElement('span');
+    hcpres.className='hres hcpres';
+    var netres=document.createElement('span');
+    netres.className='hres netres';
+    row.appendChild(ni); row.appendChild(hi); row.appendChild(hcpres); row.appendChild(netres);
     c.appendChild(row);
   }
   chkValid();
+  updateLiveHandicaps();
 }
 
 function chkValid(){
-  var ns=document.querySelectorAll('.ni'),hs=document.querySelectorAll('.hi');
+  var c=document.getElementById('ninputs');
+  var ns=c.querySelectorAll('.ni'),hs=c.querySelectorAll('.hi');
   var ok=true;
   for(var i=0;i<ns.length;i++) if(!ns[i].value.trim()) ok=false;
   for(var i=0;i<hs.length;i++) if(hs[i].value==='') ok=false;
+  if(G.course==='away'){
+    var ar=document.getElementById('awayrating').value,as=document.getElementById('awayslope').value;
+    if(ar===''||as==='') ok=false;
+  }
   document.getElementById('teeup').disabled=!ok;
 }
 
 function startGame(){
-  var ns=document.querySelectorAll('.ni'),hs=document.querySelectorAll('.hi');
-  G.players=[]; G.hdcp={}; G.chdcp={};
+  var ns=document.querySelectorAll('#ninputs .ni'),hs=document.querySelectorAll('#ninputs .hi');
+  var tee=activeTee();
+  G.players=[];
+  var idx=[];
   for(var i=0;i<ns.length;i++){
-    var p=ns[i].value.trim();
-    G.players.push(p);
-    var idx=parseFloat(hs[i].value)||0;
-    G.hdcp[p]=idx; G.chdcp[p]=courseHdcp(idx);
+    G.players.push(ns[i].value.trim());
+    idx.push(parseFloat(hs[i].value)||0);
   }
+  applyHandicaps(G.players,idx,tee);
   G.holes=initHoles(G.players); G.active=0;
   showScreen('game'); renderGame();
 }
@@ -584,12 +590,42 @@ document.getElementById('sumbtn').addEventListener('click',function(){showScreen
 document.getElementById('backbtn').addEventListener('click',function(){showScreen('game');renderGame();});
 document.getElementById('newbtn').addEventListener('click',function(){showScreen('setup');});
 
-var cp=document.getElementById('cpills');
-cp.innerHTML=[3,4,5].map(function(n){return'<button class="cpill'+(n===3?' on':'')+'" data-n="'+n+'">'+n+'</button>';}).join('');
-cp.addEventListener('click',function(e){var b=e.target.closest('.cpill');if(b)setCount(parseInt(b.dataset.n));});
+var pc=document.getElementById('playercount');
+pc.addEventListener('input',function(){
+  var n=parseInt(pc.value);
+  if(isNaN(n)||n<2||n>6) return;
+  setCount(n);
+});
+pc.addEventListener('change',function(){
+  var n=parseInt(pc.value);
+  if(isNaN(n)) n=4;
+  n=Math.max(2,Math.min(6,n));
+  pc.value=n;
+  setCount(n);
+});
+document.getElementById('pcminus').addEventListener('click',function(){
+  var n=Math.max(2,(parseInt(pc.value)||4)-1);
+  pc.value=n; setCount(n);
+});
+document.getElementById('pcplus').addEventListener('click',function(){
+  var n=Math.min(6,(parseInt(pc.value)||4)+1);
+  pc.value=n; setCount(n);
+});
 
-G.count=3;
+document.getElementById('coursepills').addEventListener('click',function(e){
+  var b=e.target.closest('.coursebtn-half'); if(!b) return;
+  G.course=b.dataset.course; renderCourseUI(); chkValid(); updateLiveHandicaps();
+});
+document.getElementById('teepills').addEventListener('click',function(e){
+  var b=e.target.closest('.cpill'); if(!b) return;
+  G.tee=b.dataset.tee; renderTeeInfo(); chkValid(); updateLiveHandicaps();
+});
+document.getElementById('awayrating').addEventListener('input',function(){chkValid();updateLiveHandicaps();});
+document.getElementById('awayslope').addEventListener('input',function(){chkValid();updateLiveHandicaps();});
+
+G.count=4;
 buildInputs();
+renderCourseUI();
 </script>
 </body>
 </html>
