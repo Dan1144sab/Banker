@@ -670,6 +670,51 @@ test('snapshotGame/restoreGame round-trip the whole game, so a bad save can be r
   G.roster={};
 });
 
+// ---- persistence ----
+test('serializeRound/parseRound/loadRound bring a mid-round Away game back exactly',function(){
+  G.course='away'; G.tee='blue';
+  G.players=['A','B','C']; G.roster=initRoster(G.players); G.active=5;
+  G.awayHoles=buildAwayHoles([18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1]);
+  applyHandicaps(G.players,[12,3.1,20],{rating:70.1,slope:125});
+  G.holes=initHoles(G.players);
+  var h=G.holes[0]; h.locked=true; h.banker='B'; h.wagers.A=10; h.strokes.A='5'; h.strokes.B='4';
+  addPlayerToGame('D',1);
+  var before=JSON.stringify({p:G.players,r:G.roster,h:G.hdcp,w:G.raw,c:G.chdcp,o:G.holes,a:G.active,ah:G.awayHoles});
+  var text=serializeRound({awayRating:'70.1',awaySlope:'125'});
+
+  // wipe G the way a fresh page load would
+  G.players=[]; G.roster={}; G.hdcp={}; G.raw={}; G.chdcp={}; G.holes=[]; G.active=0;
+  G.awayHoles=null; G.course='home'; G.tee='white';
+
+  var o=parseRound(text);
+  assertTrue(o!==null,'a good save parses');
+  assertEqual(o.awayRating,'70.1'); assertEqual(o.awaySlope,'125');
+  loadRound(o);
+  assertEqual(JSON.stringify({p:G.players,r:G.roster,h:G.hdcp,w:G.raw,c:G.chdcp,o:G.holes,a:G.active,ah:G.awayHoles}),before,'every field is back');
+  assertEqual(G.course,'away'); assertEqual(G.tee,'blue'); assertEqual(G.count,4);
+  assertEqual(roundSummary(o),{players:['A','B','C','D'],holesPlayed:1});
+  G.roster={}; G.course='home'; G.tee='white'; G.awayHoles=null;
+});
+
+test('parseRound refuses anything it cannot trust, without throwing',function(){
+  assertEqual(parseRound(null),null,'nothing saved');
+  assertEqual(parseRound(''),null,'empty');
+  assertEqual(parseRound('{not json'),null,'corrupt');
+  assertEqual(parseRound('{"v":999}'),null,'other version');
+  G.course='home'; G.awayHoles=null;
+  G.players=['A','B']; G.roster=initRoster(G.players); G.holes=initHoles(G.players); G.active=0;
+  G.hdcp={A:1,B:2}; G.raw={A:1,B:2}; G.chdcp={A:0,B:1};
+  var good=JSON.parse(serializeRound());
+  function bad(mut){var o=JSON.parse(JSON.stringify(good)); mut(o); return parseRound(JSON.stringify(o));}
+  assertTrue(parseRound(JSON.stringify(good))!==null,'control: unmodified save is fine');
+  assertEqual(bad(function(o){o.holes=o.holes.slice(1);}),null,'17 holes');
+  assertEqual(bad(function(o){o.players=['A'];}),null,'one player');
+  assertEqual(bad(function(o){o.active=18;}),null,'active hole out of range');
+  assertEqual(bad(function(o){delete o.raw;}),null,'missing handicaps');
+  assertEqual(bad(function(o){o.course='away';o.awayHoles=null;}),null,'away round without its SI');
+  G.roster={};
+});
+
 // ---- fmt ----
 test('fmt formats signed dollar amounts, zero as E',function(){
   assertEqual(fmt(0),'E');
@@ -702,7 +747,8 @@ document.title=(fail?'✗ FAIL':'✓ PASS')+' — Banker Logic Tests';
 <h1 style="margin-top:28px">Setup Screen Layout Tests</h1>
 <div id="dom-summary">Running…</div>
 <div id="dom-results"></div>
-<iframe id="layout-frame" src="index.html" style="width:375px;height:500px;border:1px solid #333"></iframe>
+<script>try{localStorage.removeItem('banker.test');}catch(e){}</script>
+<iframe id="layout-frame" src="index.html?store=banker.test" style="width:375px;height:500px;border:1px solid #333"></iframe>
 <script>
 (function(){
   var domPass=0,domFail=0;
@@ -980,7 +1026,7 @@ document.title=(fail?'✗ FAIL':'✓ PASS')+' — Banker Logic Tests';
       // ---- Mid-round editing: netting, bankers and save ordering ----
       // A second fresh round, this time with spread-out indexes so the
       // netting assertions below actually mean something.
-      fd.getElementById('newbtn').click();
+      fd.getElementById('newbtn').click(); fd.getElementById('mok').click(); // New Game now asks first
       while(fd.querySelectorAll('#ninputs .prow').length>4) fd.getElementById('pcminus').click();
       var gn=fd.querySelectorAll('#ninputs .ni'),gh=fd.querySelectorAll('#ninputs .hi');
       var who=['Garrett','Dan','Ann','Sam'],idxs=['12','3.1','21','8'];
@@ -1129,6 +1175,106 @@ document.title=(fail?'✗ FAIL':'✓ PASS')+' — Banker Logic Tests';
         fw.chdcpAt('Gman',2)===15&&fw.chdcpAt('Pro',2)===0&&fw.G.chdcp.Gman===15,
         'from hole 3: Gman='+fw.chdcpAt('Gman',2)+', Pro='+fw.chdcpAt('Pro',2)+
         '; a 12/3.1/21/8/15/20/0 group off the 1st tee gives a 12 exactly 15');
+
+      // ---- Leaving a round: confirm, autosave, resume ----
+      var KEY='banker.test';
+      function modalOn(){return fd.getElementById('modal').classList.contains('on');}
+      function saved(){return fw.parseRound(fw.localStorage.getItem(KEY));}
+      var liveBefore=JSON.stringify(fw.G.players);
+
+      fd.getElementById('newbtn').click();
+      addResult('New Game mid-round asks first instead of going to setup',
+        modalOn()&&fd.getElementById('game').classList.contains('active')
+        &&!fd.getElementById('setup').classList.contains('active'),
+        'modal on='+modalOn()+', game active='+fd.getElementById('game').classList.contains('active'));
+      addResult('and the warning says all scores and money will be erased',
+        /permanently erases all scores and money/.test(fd.getElementById('mbody').textContent),
+        fd.getElementById('mbody').textContent);
+      addResult('Keep playing is the focused default, not the destructive button',
+        fd.activeElement===fd.getElementById('mcancel'),
+        'focused='+(fd.activeElement&&fd.activeElement.id));
+      fd.getElementById('mcancel').click();
+      addResult('Keep playing leaves the round exactly as it was',
+        !modalOn()&&JSON.stringify(fw.G.players)===liveBefore&&fw.G.holes.length===18,
+        'modal on='+modalOn());
+      fd.getElementById('newbtn').click();
+      fd.dispatchEvent(new fw.KeyboardEvent('keydown',{key:'Escape'}));
+      addResult('Escape cancels too',!modalOn()&&fw.G.holes.length===18,'modal on='+modalOn());
+
+      fd.getElementById('newbtn').click();
+      fd.getElementById('mok').click();
+      addResult('confirming erases the saved round and opens setup',
+        fd.getElementById('setup').classList.contains('active')&&fw.localStorage.getItem(KEY)===null,
+        'saved='+fw.localStorage.getItem(KEY));
+
+      // New Game from setup (nothing live) must not nag.
+      fw.showScreen('summary');
+      fd.getElementById('newbtn').click();
+      addResult('with no round live, New Game does not prompt',!modalOn(),'modal on='+modalOn());
+
+      // ---- autosave ----
+      fd.querySelector('[data-course="home"]').click();
+      while(fd.querySelectorAll('#ninputs .prow').length>3) fd.getElementById('pcminus').click();
+      var an=fd.querySelectorAll('#ninputs .ni'),ah=fd.querySelectorAll('#ninputs .hi');
+      var aw=['Ann','Ben','Cal'];
+      for(var i=0;i<3;i++){
+        an[i].value=aw[i]; an[i].dispatchEvent(new fw.Event('input'));
+        ah[i].value=String(5+i*6); ah[i].dispatchEvent(new fw.Event('input'));
+      }
+      addResult('nothing is saved before the round starts',fw.localStorage.getItem(KEY)===null,'saved='+fw.localStorage.getItem(KEY));
+      fd.getElementById('teeup').click();
+      var s0=saved();
+      addResult('teeing off autosaves the round',
+        s0&&s0.players.join()==='Ann,Ben,Cal'&&s0.course==='home',
+        'saved='+JSON.stringify(s0&&s0.players));
+      fw.G.holes[0].banker='Ann';
+      fw.G.holes[0].wagers.Ben=10; fw.G.holes[0].wagers.Cal=10;
+      fw.renderGame();
+      var sinp=fd.querySelector('.sinp');
+      sinp.value='4'; sinp.dispatchEvent(new fw.Event('input',{bubbles:true}));
+      var s1=saved();
+      addResult('a score typed into a box is saved without waiting for a re-render',
+        s1&&s1.holes[0].strokes[sinp.dataset.p]==='4',
+        'saved stroke='+(s1&&s1.holes[0].strokes[sinp.dataset.p]));
+      addResult('a wager is saved',s1&&s1.holes[0].wagers.Ben===10&&s1.holes[0].banker==='Ann',
+        'saved wager='+(s1&&s1.holes[0].wagers.Ben));
+
+      // ---- resume (what a reload does on load) ----
+      var wantPlayers=fw.G.players.join(),wantWager=fw.G.holes[0].wagers.Ben;
+      fw.G.players=[]; fw.G.holes=[]; fw.G.roster={}; fw.G.chdcp={}; fw.G.raw={}; fw.G.hdcp={};
+      fw.gameLive=false;
+      fw.offerResume();
+      addResult('a saved round is offered back on load, naming who was playing',
+        modalOn()&&/Ann, Ben, Cal/.test(fd.getElementById('mbody').textContent)
+        &&/Resume/.test(fd.getElementById('mtitle').textContent),
+        fd.getElementById('mbody').textContent);
+      fd.getElementById('mcancel').click(); // Start new…
+      addResult('declining to resume asks a second time before erasing',
+        modalOn()&&/Erase/.test(fd.getElementById('mtitle').textContent)&&saved()!==null,
+        'title='+fd.getElementById('mtitle').textContent+', still saved='+(saved()!==null));
+      fd.getElementById('mcancel').click(); // Go back
+      addResult('Go back returns to the resume offer, still saved',
+        modalOn()&&/Resume/.test(fd.getElementById('mtitle').textContent)&&saved()!==null,
+        'title='+fd.getElementById('mtitle').textContent);
+      fd.getElementById('mok').click();
+      addResult('Resume puts the round back and shows the game',
+        fw.G.players.join()===wantPlayers&&fw.G.holes[0].wagers.Ben===wantWager
+        &&fd.getElementById('game').classList.contains('active')&&!modalOn(),
+        'players='+fw.G.players.join()+', wager='+fw.G.holes[0].wagers.Ben);
+      addResult('and the round keeps autosaving after a resume',
+        (function(){fw.G.holes[1].banker='Cal';fw.renderGame();return saved().holes[1].banker==='Cal';})(),
+        'saved banker on hole 2='+(saved()&&saved().holes[1].banker));
+
+      fw.gameLive=false; fw.offerResume();
+      fd.getElementById('mcancel').click(); fd.getElementById('mok').click();
+      addResult('Start new, then Erase it, deletes the saved round',
+        !modalOn()&&fw.localStorage.getItem(KEY)===null,'saved='+fw.localStorage.getItem(KEY));
+      fw.offerResume();
+      addResult('with nothing saved, load shows no prompt',!modalOn(),'modal on='+modalOn());
+      fw.localStorage.setItem(KEY,'{corrupt');
+      fw.offerResume();
+      addResult('a corrupt save is ignored rather than breaking load',!modalOn(),'modal on='+modalOn());
+      fw.localStorage.removeItem(KEY);
     }catch(e){
       addResult('layout tests threw an error',false,e.message);
     }

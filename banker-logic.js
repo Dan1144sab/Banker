@@ -285,6 +285,60 @@ function restoreGame(snap){
   G.chdcp=o.chdcp; G.holes=o.holes; G.active=o.active; G.awayHoles=o.awayHoles;
 }
 
+// ---------------------------------------------------------------------------
+// Persistence — a round survives a reload, a crashed tab, a dead battery.
+//
+// snapshotGame() above is an in-memory undo for one save. This is the durable
+// version: it also carries what the setup screen needs to be rebuilt (course,
+// tee, the Away rating/slope, which live in the DOM and are passed in by the
+// caller). Pure — storage itself (localStorage) is index.html's business.
+// ---------------------------------------------------------------------------
+
+var SAVE_VERSION=1;
+
+function serializeRound(extra){
+  extra=extra||{};
+  return JSON.stringify({v:SAVE_VERSION,course:G.course,tee:G.tee,
+    players:G.players,roster:G.roster,hdcp:G.hdcp,raw:G.raw,chdcp:G.chdcp,
+    holes:G.holes,active:G.active,awayHoles:G.awayHoles||null,
+    awayRating:extra.awayRating==null?'':String(extra.awayRating),
+    awaySlope:extra.awaySlope==null?'':String(extra.awaySlope)});
+}
+
+// Returns the saved round, or null if the text is missing, corrupt, from a
+// different version, or structurally unusable. A bad save must never throw
+// at load — it just means there is nothing to resume.
+function parseRound(text){
+  var o;
+  try{ o=JSON.parse(text); }catch(e){ return null; }
+  if(!o||o.v!==SAVE_VERSION) return null;
+  if(!Array.isArray(o.players)||o.players.length<2) return null;
+  if(!Array.isArray(o.holes)||o.holes.length!==HOLES) return null;
+  if(!o.roster||!o.hdcp||!o.raw||!o.chdcp) return null;
+  if(typeof o.active!=='number'||o.active<0||o.active>=HOLES) return null;
+  if(o.course==='away'&&(!Array.isArray(o.awayHoles)||o.awayHoles.length!==HOLES)) return null;
+  return o;
+}
+
+// Puts a parsed round back into G. The caller restores the Away rating/slope
+// and SI inputs from the same object, then re-renders.
+function loadRound(o){
+  G.players=o.players; G.roster=o.roster; G.hdcp=o.hdcp; G.raw=o.raw;
+  G.chdcp=o.chdcp; G.holes=o.holes; G.active=o.active;
+  G.course=o.course==='away'?'away':'home';
+  G.awayHoles=G.course==='away'?o.awayHoles:null;
+  if(TEES[o.tee]) G.tee=o.tee;
+  G.count=o.players.length;
+}
+
+// What the "Resume round?" prompt tells the user, so they can tell at a
+// glance that it is the right round.
+function roundSummary(o){
+  var locked=0;
+  for(var i=0;i<o.holes.length;i++) if(o.holes[i].locked) locked++;
+  return {players:o.players.slice(),holesPlayed:locked};
+}
+
 // Every player who was in the game before must still have the same total.
 // Players who only appear in `after` joined, and start at zero by definition.
 function totalsUnchanged(before,after){

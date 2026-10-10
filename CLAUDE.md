@@ -273,6 +273,28 @@ before adding to it:
   is fine for roster and netting assertions, but if you are testing the lock
   button itself, drive the real button.
 
+## Losing a round: confirm, autosave, resume
+
+The round lives in `G` (memory) and is **autosaved to `localStorage`** (key
+`banker.round.v1`) from `renderGame()` and the score-box `input` handler, once
+`gameLive` is true (set by `startGame()`/`resumeRound()`, cleared by a confirmed
+New Game). Pure pieces are in `banker-logic.js` (`serializeRound`, `parseRound`,
+`loadRound`, `roundSummary`); storage and UI are in `index.html`.
+
+- **New Game** (`#newbtn`) shows an in-page modal (`showModal()`) when a round is live,
+  with *Keep playing* focused by default; confirming erases the saved round. A
+  `snapshotGame()` is *not* enough for this — it omits course/tee/Away rating & slope,
+  which `serializeRound()` adds.
+- **On load**, `offerResume()` offers Resume / Start new; Start new asks a second time
+  before erasing. A missing, corrupt or other-version save is ignored (`parseRound`
+  returns null). Bump `SAVE_VERSION` if `G`'s saved shape changes — **anything new
+  added to `G` (e.g. Hammer state) must go into `serializeRound`/`loadRound`.**
+- **`beforeunload` only fires when saving failed** (`saveOk` false: private mode, quota),
+  because with autosave a reload is recoverable and prompting on every refresh is noise.
+- **`?store=<key>` on the URL** uses a separate storage key and disables the unload
+  prompt. `tests.html` loads the iframe as `index.html?store=banker.test` so tests never
+  touch a real round. Any test that clicks `#newbtn` mid-round must then click `#mok`.
+
 ## CSS/layout gotchas
 
 - Inputs used as flex children (`.ni`, `.hi`) need `min-width:0`. Without it, flex items

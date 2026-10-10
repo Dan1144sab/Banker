@@ -202,9 +202,26 @@
     .lrc.zero{background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.35)}
     .smbrow{display:flex;gap:10px;flex-shrink:0}
     .smbtn{padding:13px 28px;background:var(--gold);color:var(--dark);border:none;border-radius:12px;font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;cursor:pointer}
+    .mback{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;padding:20px}
+    .mback.on{display:flex}
+    .mbox{background:#14281a;border:1px solid rgba(201,168,76,0.4);border-radius:16px;padding:22px 20px;max-width:340px;width:100%;color:#f7f3ea}
+    .mtitle{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:2px;color:var(--gold);margin-bottom:8px}
+    .mbody{font-size:14px;line-height:1.45;color:rgba(255,255,255,0.8);margin-bottom:18px}
+    .mbtns{display:flex;gap:10px}
+    .mbtns button{flex:1;padding:12px 8px;border-radius:10px;border:1px solid rgba(255,255,255,0.25);background:transparent;color:#f7f3ea;font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1.5px;cursor:pointer}
+    .mbtns button.mok{background:var(--gold);color:var(--dark);border-color:var(--gold)}
+    .mbtns button.mdanger{background:#b91c1c;border-color:#b91c1c;color:#fff}
   </style>
 </head>
 <body>
+
+<div id="modal" class="mback" role="dialog" aria-modal="true" aria-labelledby="mtitle">
+  <div class="mbox">
+    <div class="mtitle" id="mtitle"></div>
+    <div class="mbody" id="mbody"></div>
+    <div class="mbtns"><button id="mcancel"></button><button id="mok"></button></div>
+  </div>
+</div>
 
 <div id="setup" class="screen active">
   <div><div class="logo-i">⛳</div><div class="logo-t" style="font-size:38px;letter-spacing:3px">ROLLING GREEN BANKER</div></div>
@@ -561,6 +578,7 @@ function startGame(){
   applyHandicaps(G.players,idx,tee);
   G.roster=initRoster(G.players);
   G.holes=initHoles(G.players); G.active=0;
+  gameLive=true;
   showScreen('game'); renderGame();
 }
 
@@ -711,7 +729,7 @@ function showScreen(id){
   }
 }
 
-function renderGame(){renderLB();renderNav();renderCard();}
+function renderGame(){renderLB();renderNav();renderCard();saveRound();}
 
 function renderLB(){
   var t=calcTotals();
@@ -897,7 +915,7 @@ document.getElementById('hnav').addEventListener('click',function(e){
 document.addEventListener('input',function(e){
   if(!e.target.classList.contains('sinp')) return;
   G.holes[G.active].strokes[e.target.dataset.p]=e.target.value;
-  renderLB();
+  renderLB(); saveRound();
   var hole=G.holes[G.active];
   var inPlay=holePlayers(G.active);
   var nonB=inPlay.filter(function(p){return p!==hole.banker;});
@@ -992,11 +1010,18 @@ document.getElementById('addplayer').addEventListener('click',function(){
 document.getElementById('sumbtn').addEventListener('click',function(){showScreen('summary');renderSummary();});
 document.getElementById('backbtn').addEventListener('click',function(){showScreen('game');renderGame();});
 document.getElementById('newbtn').addEventListener('click',function(){
-  exitEditMode();
-  G.count=Math.max(2,Math.min(6,G.players.length||4));
-  document.getElementById('playercount').value=G.count;
-  buildInputs();
-  showScreen('setup');
+  function go(){
+    clearSavedRound(); gameLive=false;
+    exitEditMode();
+    G.count=Math.max(2,Math.min(6,G.players.length||4));
+    document.getElementById('playercount').value=G.count;
+    buildInputs();
+    showScreen('setup');
+  }
+  if(!gameLive){ go(); return; }
+  showModal({title:'Start a new game?',
+    body:'This ends the current round and <b>permanently erases all scores and money</b> ('+roundProgressText()+'). It cannot be undone.',
+    okLabel:'Erase & start new',cancelLabel:'Keep playing',danger:true,onOk:go});
 });
 
 var pc=document.getElementById('playercount');
@@ -1032,11 +1057,103 @@ document.getElementById('teepills').addEventListener('click',function(e){
 document.getElementById('awayrating').addEventListener('input',function(){chkValid();updateLiveHandicaps();});
 document.getElementById('awayslope').addEventListener('input',function(){chkValid();updateLiveHandicaps();});
 
+// ---------------------------------------------------------------------------
+// Confirm modal, autosave, resume
+//
+// The round lives in G (memory). It is autosaved to localStorage on every
+// render so a reload, crash or dead battery doesn't lose it; New Game is the
+// one deliberate way to erase it and asks twice-over in plain words. If
+// storage is unavailable (private browsing, quota) the round is NOT
+// recoverable, so only then does leaving the page raise the browser's
+// "Leave site?" prompt.
+//
+// `?store=<key>` points the app at a separate key and switches the unload
+// prompt off — tests.html drives this page in an iframe and must never touch
+// (or be prompted over) a real round.
+// ---------------------------------------------------------------------------
+
+var gameLive=false,saveOk=true;
+var STORE_PARAM=(location.search.match(/[?&]store=([^&]+)/)||[])[1];
+var STORE_KEY=STORE_PARAM?decodeURIComponent(STORE_PARAM):'banker.round.v1';
+
+function showModal(o){
+  var m=document.getElementById('modal'),ok=document.getElementById('mok'),cn=document.getElementById('mcancel');
+  document.getElementById('mtitle').textContent=o.title;
+  document.getElementById('mbody').innerHTML=o.body;
+  ok.textContent=o.okLabel; cn.textContent=o.cancelLabel;
+  ok.className=o.danger?'mdanger':'mok';
+  function close(){
+    m.classList.remove('on');
+    ok.onclick=cn.onclick=null; document.removeEventListener('keydown',onKey);
+  }
+  function onKey(e){ if(e.key==='Escape') cn.onclick(); }
+  ok.onclick=function(){close(); if(o.onOk) o.onOk();};
+  cn.onclick=function(){close(); if(o.onCancel) o.onCancel();};
+  document.addEventListener('keydown',onKey);
+  m.classList.add('on');
+  cn.focus(); // the safe choice is the default
+}
+
+function roundProgressText(){
+  var n=G.holes.filter(function(h){return h.locked;}).length;
+  return n+'/18 holes scored';
+}
+
+function saveRound(){
+  if(!gameLive) return;
+  try{
+    localStorage.setItem(STORE_KEY,serializeRound({
+      awayRating:document.getElementById('awayrating').value,
+      awaySlope:document.getElementById('awayslope').value}));
+    saveOk=true;
+  }catch(e){ saveOk=false; }
+}
+
+function clearSavedRound(){
+  try{localStorage.removeItem(STORE_KEY);}catch(e){}
+}
+
+function resumeRound(o){
+  loadRound(o);
+  document.getElementById('awayrating').value=o.awayRating;
+  document.getElementById('awayslope').value=o.awaySlope;
+  var si=document.querySelectorAll('#sigrid .siinp');
+  for(var i=0;i<si.length;i++) si[i].value=o.awayHoles?o.awayHoles[i].si:'';
+  gameLive=true;
+  exitEditMode(); renderSIStatus();
+  showScreen('game'); renderGame();
+}
+
+function offerResume(){
+  var o=null;
+  try{o=parseRound(localStorage.getItem(STORE_KEY));}catch(e){}
+  if(!o) return;
+  var s=roundSummary(o);
+  showModal({title:'Resume your round?',
+    body:'A round is saved on this device: <b>'+s.players.join(', ')+'</b> — '+s.holesPlayed+'/18 holes scored.',
+    okLabel:'Resume round',cancelLabel:'Start new',
+    onOk:function(){resumeRound(o);},
+    onCancel:function(){
+      showModal({title:'Erase the saved round?',
+        body:'Starting new <b>permanently erases</b> the saved round ('+s.holesPlayed+'/18 holes scored). It cannot be undone.',
+        okLabel:'Erase it',cancelLabel:'Go back',danger:true,
+        onOk:clearSavedRound,onCancel:offerResume});
+    }});
+}
+
+if(!STORE_PARAM){
+  window.addEventListener('beforeunload',function(e){
+    if(!gameLive||saveOk) return;
+    e.preventDefault(); e.returnValue='';
+  });
+}
+
 G.count=4;
 buildInputs();
 buildSIInputs();
 renderCourseUI();
 renderSIStatus();
+offerResume();
 </script>
 </body>
 </html>
