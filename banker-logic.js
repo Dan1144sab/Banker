@@ -42,9 +42,16 @@ function applyHandicaps(players,indexes,tee,par){
   return net;
 }
 
+// The holes in play for the current game: Rolling Green's layout at home, or
+// G.awayHoles (same pars, custom stroke-index sequence) when an away course
+// with its own SI sequence has been entered.
+function activeHoles(){
+  return (G.course==='away'&&G.awayHoles&&G.awayHoles.length===HOLES)?G.awayHoles:COURSE.holes;
+}
+
 // Par 3 = 3x press, Par 4/5 = 2x press
 function holeMult(hi){
-  return COURSE.holes[hi].par===3?3:2;
+  return activeHoles()[hi].par===3?3:2;
 }
 
 function calcMult(press,hi){
@@ -57,10 +64,30 @@ function finalWager(base,press,hi){
 }
 
 function getStrokes(player,hi){
-  var ch=G.chdcp[player]||0,si=COURSE.holes[hi].si,s=0;
+  var ch=G.chdcp[player]||0,si=activeHoles()[hi].si,s=0;
   if(ch>=si) s++;
   if(ch>=18+si) s++;
   return s;
+}
+
+// True only if si is a permutation of 1..18 (every course's SI must be).
+function isValidSISequence(si){
+  if(!si||si.length!==HOLES) return false;
+  var seen={};
+  for(var i=0;i<si.length;i++){
+    var n=si[i];
+    if(!(n>=1&&n<=18)||seen[n]) return false;
+    seen[n]=true;
+  }
+  return true;
+}
+
+// Builds an away course's holes array: keeps Rolling Green's par layout (par
+// isn't collected for away courses) but uses the entered SI sequence.
+function buildAwayHoles(si){
+  var arr=[];
+  for(var i=0;i<HOLES;i++) arr.push({h:i+1,par:COURSE.holes[i].par,si:si[i]});
+  return arr;
 }
 
 function initHoles(players){
@@ -97,6 +124,23 @@ function calcResult(hole){
   }
   res[hole.banker]=bn;
   return res;
+}
+
+// Gross strokes per player, split front/back/total across locked holes only.
+// Net = total gross strokes minus the player's net course handicap (G.chdcp).
+function calcScores(){
+  var front={},back={},total={},net={};
+  for(var i=0;i<G.players.length;i++){var p=G.players[i];front[p]=0;back[p]=0;total[p]=0;}
+  for(var i=0;i<G.holes.length;i++){
+    var h=G.holes[i]; if(!h.locked) continue;
+    for(var j=0;j<G.players.length;j++){
+      var p=G.players[j],s=Number(h.strokes[p]); if(!s) continue;
+      if(h.hole<=9) front[p]+=s; else back[p]+=s;
+      total[p]+=s;
+    }
+  }
+  for(var i=0;i<G.players.length;i++){var p=G.players[i];net[p]=total[p]-(G.chdcp[p]||0);}
+  return {front:front,back:back,total:total,net:net};
 }
 
 function calcTotals(){

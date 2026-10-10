@@ -168,6 +168,75 @@ test('calcTotals sums results only across locked holes',function(){
   assertEqual(t.Banker,10);
 });
 
+// ---- Rolling Green stroke index ----
+test('Rolling Green stroke index sequence matches the course card',function(){
+  var si=COURSE.holes.map(function(h){return h.si;});
+  assertEqual(si,[9,13,3,7,11,1,17,15,5,4,16,10,8,2,14,18,12,6]);
+});
+
+test('isValidSISequence accepts only a permutation of 1-18',function(){
+  var si=COURSE.holes.map(function(h){return h.si;});
+  assertTrue(isValidSISequence(si),'the real Rolling Green sequence must validate');
+  assertTrue(!isValidSISequence([1,1,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]),'duplicate SI is invalid');
+  assertTrue(!isValidSISequence([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17]),'only 17 entries is invalid');
+  assertTrue(!isValidSISequence([0,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]),'0 is out of the 1-18 range');
+});
+
+// ---- activeHoles / away course SI override ----
+test('activeHoles falls back to COURSE.holes until a valid away SI sequence is set',function(){
+  G.course='home'; G.awayHoles=null;
+  assertEqual(activeHoles(),COURSE.holes);
+  G.course='away'; G.awayHoles=null;
+  assertEqual(activeHoles(),COURSE.holes,'away selected but no SI entered yet -> fall back rather than break getStrokes');
+});
+
+test('buildAwayHoles keeps Rolling Green pars but swaps in the entered SI sequence',function(){
+  var si=[18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1];
+  var holes=buildAwayHoles(si);
+  assertEqual(holes.length,HOLES);
+  assertEqual(holes[0].par,COURSE.holes[0].par,'par still comes from the Rolling Green layout');
+  assertEqual(holes[0].si,18);
+  assertEqual(holes[17].si,1);
+});
+
+test('getStrokes reads the away SI sequence once G.awayHoles is set, not Rolling Green\'s',function(){
+  G.course='away';
+  G.awayHoles=buildAwayHoles([18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1]);
+  G.chdcp={A:18};
+  assertEqual(getStrokes('A',0),1,'hole index 0 now has SI 18 (Rolling Green\'s is 9)');
+  assertEqual(getStrokes('A',17),1,'hole index 17 has SI 1, and 18<18+1 so only one stroke');
+  G.course='home'; G.awayHoles=null;
+});
+
+// ---- calcScores ----
+test('calcScores sums gross strokes into front/back/total and nets against handicap',function(){
+  G.players=['A','B'];
+  G.chdcp={A:10,B:0};
+  G.holes=initHoles(G.players);
+  for(var i=0;i<18;i++){
+    G.holes[i].locked=true;
+    G.holes[i].strokes.A='5';
+    G.holes[i].strokes.B='4';
+  }
+  var sc=calcScores();
+  assertEqual(sc.front.A,45,'9 holes x 5 strokes');
+  assertEqual(sc.back.A,45);
+  assertEqual(sc.total.A,90);
+  assertEqual(sc.net.A,80,'90 total - 10 handicap');
+  assertEqual(sc.total.B,72);
+  assertEqual(sc.net.B,72,'72 total - 0 handicap');
+});
+
+test('calcScores only counts locked holes',function(){
+  G.players=['A'];
+  G.chdcp={A:0};
+  G.holes=initHoles(G.players);
+  G.holes[0].locked=true; G.holes[0].strokes.A='4';
+  G.holes[1].locked=false; G.holes[1].strokes.A='9';
+  var sc=calcScores();
+  assertEqual(sc.total.A,4,'only the locked hole counts');
+});
+
 // ---- initHoles ----
 test('initHoles builds 18 unlocked holes with blank wagers/scores for each player',function(){
   var holes=initHoles(['A','B']);
@@ -205,6 +274,121 @@ tests.forEach(function(t){
 document.getElementById('summary').innerHTML=
   '<span class="'+(fail?'fail':'pass')+'">'+pass+' passed, '+fail+' failed</span> ('+tests.length+' total)';
 document.title=(fail?'✗ FAIL':'✓ PASS')+' — Banker Logic Tests';
+</script>
+
+<h1 style="margin-top:28px">Setup Screen Layout Tests</h1>
+<div id="dom-summary">Running…</div>
+<div id="dom-results"></div>
+<iframe id="layout-frame" src="index.html" style="width:375px;height:500px;border:1px solid #333"></iframe>
+<script>
+(function(){
+  var domPass=0,domFail=0;
+  var out=document.getElementById('dom-results');
+  function addResult(name,ok,msg){
+    if(ok)domPass++; else domFail++;
+    var div=document.createElement('div');
+    div.className='case '+(ok?'pass':'fail');
+    div.innerHTML='<span class="'+(ok?'pass':'fail')+'">'+(ok?'✓':'✗')+'</span> '+name+
+      (msg?'<div class="msg">'+msg+'</div>':'');
+    out.appendChild(div);
+  }
+  function finish(){
+    document.getElementById('dom-summary').innerHTML=
+      '<span class="'+(domFail?'fail':'pass')+'">'+domPass+' passed, '+domFail+' failed</span>';
+  }
+  var frame=document.getElementById('layout-frame');
+  frame.addEventListener('load',function(){
+    try{
+      var fw=frame.contentWindow, fd=frame.contentDocument;
+      // Bump to 6 players so the setup card's content is taller than the
+      // (deliberately small) iframe viewport, reproducing "can't reach Tee
+      // It Up on a phone with >4 players".
+      fd.getElementById('pcplus').click();
+      fd.getElementById('pcplus').click();
+
+      var setup=fd.getElementById('setup');
+      var cs=fw.getComputedStyle(setup);
+      var cappedHeight=parseFloat(cs.height);
+
+      addResult('#setup height is capped to the viewport, not left to grow via min-height',
+        cappedHeight<=frame.clientHeight+1,
+        'computed height='+cs.height+', iframe viewport height='+frame.clientHeight+'px');
+
+      addResult('#setup content overflows the viewport with 6 players (reproduces the bug scenario)',
+        setup.scrollHeight>setup.clientHeight,
+        'scrollHeight='+setup.scrollHeight+', clientHeight='+setup.clientHeight);
+
+      setup.scrollTop=setup.scrollHeight;
+      addResult('#setup actually scrolls so "Tee It Up" is reachable',
+        setup.scrollTop>0,
+        'scrollTop after scrolling to bottom='+setup.scrollTop);
+
+      // ---- Away course stroke-index input ----
+      fd.querySelector('[data-course="away"]').click();
+      var siInputs=fd.querySelectorAll('#sigrid .siinp');
+      addResult('selecting Away reveals 18 stroke-index inputs',
+        siInputs.length===18,
+        'found '+siInputs.length);
+
+      var dup=[1,1,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18];
+      for(var i=0;i<18;i++){siInputs[i].value=dup[i];siInputs[i].dispatchEvent(new fw.Event('input'));}
+      addResult('a non-permutation SI sequence (duplicate) disables Tee It Up',
+        fd.getElementById('teeup').disabled===true,
+        'teeup.disabled='+fd.getElementById('teeup').disabled);
+
+      var good=[18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1];
+      for(var i=0;i<18;i++){siInputs[i].value=good[i];siInputs[i].dispatchEvent(new fw.Event('input'));}
+      fd.getElementById('awayrating').value='70.1';
+      fd.getElementById('awayrating').dispatchEvent(new fw.Event('input'));
+      fd.getElementById('awayslope').value='125';
+      fd.getElementById('awayslope').dispatchEvent(new fw.Event('input'));
+      var ns=fd.querySelectorAll('#ninputs .ni'),hs=fd.querySelectorAll('#ninputs .hi');
+      for(var i=0;i<ns.length;i++){hs[i].value='10';hs[i].dispatchEvent(new fw.Event('input'));}
+
+      // ---- Duplicate player names ----
+      var dupNames=['Garrett','garrett ','Ann','Sam']; // case/whitespace-insensitive dup
+      for(var i=0;i<ns.length;i++){ns[i].value=dupNames[i]||'P'+i;ns[i].dispatchEvent(new fw.Event('input'));}
+      addResult('duplicate player names (case/whitespace-insensitive) disable Tee It Up',
+        fd.getElementById('teeup').disabled===true,
+        'teeup.disabled='+fd.getElementById('teeup').disabled);
+      addResult('duplicate name inputs are flagged with the bad class',
+        ns[0].classList.contains('bad')&&ns[1].classList.contains('bad'),
+        'ns[0].bad='+ns[0].classList.contains('bad')+', ns[1].bad='+ns[1].classList.contains('bad'));
+
+      var uniqueNames=['Garrett','Dan','Ann','Sam'];
+      for(var i=0;i<ns.length;i++){ns[i].value=uniqueNames[i]||'P'+i;ns[i].dispatchEvent(new fw.Event('input'));}
+      addResult('making names unique again re-enables Tee It Up',
+        fd.getElementById('teeup').disabled===false,
+        'teeup.disabled='+fd.getElementById('teeup').disabled);
+
+      fd.getElementById('teeup').click();
+      addResult('starting a game with a valid away SI sequence wires it into the live hole card',
+        fw.activeHoles()[0].si===18,
+        'activeHoles()[0].si='+fw.activeHoles()[0].si+' (Rolling Green would be 9)');
+
+      // ---- Single banker-press-all button ----
+      var hole=fw.G.holes[0];
+      hole.banker=fw.G.players[0];
+      hole.wagers[fw.G.players[1]]=10; hole.wagers[fw.G.players[2]]=10; hole.wagers[fw.G.players[3]]=10;
+      fw.renderGame();
+      var bankBtn=fd.querySelector('[data-action="bpressall"]');
+      addResult('a single Banker Press All button is shown under the banker\'s row once players have wagered',
+        !!bankBtn, 'bpressall button present='+(!!bankBtn));
+      addResult('no per-player bank-press buttons remain ([data-action="bpress"] removed)',
+        fd.querySelectorAll('[data-action="bpress"]').length===0,
+        'found '+fd.querySelectorAll('[data-action="bpress"]').length);
+
+      bankBtn.click();
+      var wageredPlayers=fw.G.players.filter(function(p){return p!==hole.banker&&hole.wagers[p]!=null;});
+      addResult('clicking Banker Press All presses every wagered non-banker player at once',
+        wageredPlayers.length>0&&wageredPlayers.every(function(p){return hole.press[p].banker===true;}),
+        JSON.stringify(wageredPlayers.map(function(p){return hole.press[p].banker;})));
+    }catch(e){
+      addResult('layout tests threw an error',false,e.message);
+    }
+    finish();
+  });
+})();
 </script>
 </body>
 </html>

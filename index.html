@@ -18,7 +18,7 @@
     .screen.active{display:block}
 
     #setup{background:linear-gradient(160deg,var(--dark) 0%,#1a3d24 60%,#0f2b1a 100%);min-height:100vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
-    #setup.active{display:flex;flex-direction:column;align-items:center;padding:24px 16px 60px;gap:16px}
+    #setup.active{display:flex;flex-direction:column;align-items:center;padding:24px 16px 60px;gap:16px;height:100vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
 
     #game{height:100vh}
     #game.active{display:flex;flex-direction:column}
@@ -33,15 +33,16 @@
     .cpills{display:flex;gap:8px}
     .cpill{flex:1;padding:9px;border:2px solid var(--border);background:white;border-radius:10px;font-family:'DM Sans',sans-serif;font-weight:600;font-size:16px;cursor:pointer;color:var(--muted)}
     .cpill.on{border-color:var(--green);background:var(--green);color:white}
-    .coursebtn{display:flex;border:2px solid var(--border);border-radius:14px;overflow:hidden;height:114px}
+    .coursebtn{display:flex;border:2px solid var(--border);border-radius:14px;overflow:hidden;height:97px}
     .coursebtn-half{flex:1;border:none;background:white;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:'DM Sans',sans-serif;font-weight:600;font-size:16px;color:var(--muted)}
     .coursebtn-half+.coursebtn-half{border-left:2px solid var(--border)}
     .coursebtn-half.on{background:var(--green);color:white}
-    .courselogo{height:90px;width:auto;max-width:100%;object-fit:contain}
+    .courselogo{height:77px;width:auto;max-width:100%;object-fit:contain}
     .coursebtn-half.on .courselogo{filter:brightness(0) invert(1)}
     .prow{display:flex;gap:8px;margin-bottom:6px}
     .ni{flex:1;min-width:0;padding:10px 12px;border:2px solid var(--border);border-radius:10px;font-size:16px;background:white;color:var(--txt);-webkit-appearance:none;margin:0;font-family:'DM Sans',sans-serif}
     .ni:focus{outline:none;border-color:var(--green)}
+    .ni.bad{border-color:var(--loss)}
     .hi{width:72px;padding:10px 6px;border:2px solid var(--border);border-radius:10px;font-size:16px;background:white;color:var(--txt);-webkit-appearance:none;text-align:center;flex-shrink:0;font-family:'DM Sans',sans-serif}
     .hi:focus{outline:none;border-color:var(--green)}
     .teeup{width:100%;padding:14px;background:var(--green);color:white;border:none;border-radius:12px;font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;cursor:pointer}
@@ -49,6 +50,16 @@
     .hres{width:46px;flex-shrink:0;font-size:16px;font-weight:700;color:var(--muted);text-align:center;align-self:center}
     .hres.netres{color:var(--green)}
     .pmbtn{width:40px;height:40px;flex-shrink:0;border-radius:10px;border:2px solid var(--border);background:white;font-size:20px;font-weight:700;color:var(--green);cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center}
+
+    .sigrid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+    .sicell{display:flex;flex-direction:column;align-items:center;gap:3px}
+    .sih{font-size:9px;font-weight:700;color:var(--muted);letter-spacing:0.5px}
+    .siinp{width:100%;min-width:0;padding:6px 2px;border:2px solid var(--border);border-radius:8px;font-size:14px;text-align:center;background:white;color:var(--txt);-webkit-appearance:none;font-family:'DM Sans',sans-serif}
+    .siinp:focus{outline:none;border-color:var(--green)}
+    .siinp.bad{border-color:var(--loss)}
+    .sigridmsg{font-size:11px;color:var(--muted);margin-top:6px;text-align:center}
+    .sigridmsg.bad{color:var(--loss)}
+    .sigridmsg.ok{color:var(--win)}
 
     .topbar{background:var(--dark);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;padding-top:max(14px,env(safe-area-inset-top))}
     .gtitle{font-family:'Bebas Neue',sans-serif;color:var(--gold);font-size:26px;letter-spacing:3px}
@@ -137,8 +148,8 @@
     .lbtn:disabled{opacity:0.35;font-size:13px;letter-spacing:0.5px;font-family:'DM Sans',sans-serif;font-weight:600}
     .ubtn{width:100%;padding:10px;background:transparent;border:1.5px solid var(--border);border-radius:9px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;font-family:'DM Sans',sans-serif}
 
-    .smtitle{font-family:'Bebas Neue',sans-serif;font-size:48px;color:var(--gold);letter-spacing:4px}
-    .smcard{width:100%;max-width:440px;background:var(--cream);border-radius:18px;overflow:hidden}
+    .smtitle{font-family:'Bebas Neue',sans-serif;font-size:48px;color:var(--gold);letter-spacing:4px;flex-shrink:0}
+    .smcard{width:100%;max-width:440px;background:var(--cream);border-radius:18px;overflow:hidden;flex-shrink:0}
     .smrow{display:flex;align-items:center;padding:15px 20px;border-bottom:1px solid var(--border);gap:12px}
     .smrow:last-child{border-bottom:none}
     .smrk{font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--muted);width:26px}
@@ -146,8 +157,16 @@
     .smnm{flex:1;font-weight:600;font-size:16px}
     .smam{font-family:'Bebas Neue',sans-serif;font-size:28px}
     .smam.pos{color:var(--win)}.smam.neg{color:var(--loss)}
-    .smlog{width:100%;max-width:440px}
-    .smstats{width:100%;max-width:440px;background:rgba(255,255,255,0.06);border-radius:14px;padding:6px 16px}
+    .smscore{width:100%;max-width:440px;background:var(--cream);border-radius:14px;overflow:hidden;flex-shrink:0}
+    .sctbl{width:100%;border-collapse:collapse;font-size:12px}
+    .sctbl th{font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;font-weight:700;padding:8px 6px;text-align:center;border-bottom:1.5px solid var(--border)}
+    .sctbl th:first-child{text-align:left}
+    .sctbl td{padding:8px 6px;text-align:center;border-bottom:1px solid #f0e8d8;font-weight:600}
+    .sctbl tr:last-child td{border-bottom:none}
+    .sctbl td:first-child{text-align:left;font-weight:700}
+    .sctbl td.scnet{color:var(--green);font-weight:700}
+    .smlog{width:100%;max-width:440px;flex-shrink:0}
+    .smstats{width:100%;max-width:440px;background:rgba(255,255,255,0.06);border-radius:14px;padding:6px 16px;flex-shrink:0}
     .stt{font-family:'Bebas Neue',sans-serif;color:rgba(255,255,255,0.45);font-size:15px;letter-spacing:2px;text-align:center;padding:10px 0 6px}
     .strow{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.08)}
     .strow:last-child{border-bottom:none}
@@ -166,7 +185,7 @@
     .lrc.pos{background:rgba(22,163,74,0.2);color:#4ade80}
     .lrc.neg{background:rgba(220,38,38,0.2);color:#f87171}
     .lrc.zero{background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.35)}
-    .smbrow{display:flex;gap:10px}
+    .smbrow{display:flex;gap:10px;flex-shrink:0}
     .smbtn{padding:13px 28px;background:var(--gold);color:var(--dark);border:none;border-radius:12px;font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;cursor:pointer}
   </style>
 </head>
@@ -196,6 +215,9 @@
         <input type="number" step="0.1" class="ni" id="awayrating" placeholder="Rating">
         <input type="number" step="1" class="ni" id="awayslope" placeholder="Slope">
       </div>
+      <label class="flbl" style="margin-top:10px">Stroke Index (hole 1–18)</label>
+      <div class="sigrid" id="sigrid"></div>
+      <div id="sigridmsg" class="sigridmsg"></div>
     </div>
     <div style="text-align:center">
       <label class="flbl" style="text-align:center">Number of Players</label>
@@ -213,6 +235,7 @@
         <span class="flbl" style="width:46px;flex-shrink:0;margin-bottom:0;text-align:center">Net</span>
       </div>
       <div id="ninputs"></div>
+      <div id="namesmsg" class="sigridmsg"></div>
     </div>
     <button class="teeup" id="teeup" disabled>Tee It Up →</button>
   </div>
@@ -233,6 +256,7 @@
 <div id="summary" class="screen">
   <div class="smtitle">🏆 Final Scores</div>
   <div id="smcard" class="smcard"></div>
+  <div id="smscore" class="smscore"></div>
   <div id="smstats" class="smstats"></div>
   <div id="smlog" class="smlog"></div>
   <div class="smbrow">
@@ -286,6 +310,57 @@ function updateLiveHandicaps(){
   }
 }
 
+function buildSIInputs(){
+  var c=document.getElementById('sigrid');
+  c.innerHTML='';
+  for(var i=0;i<HOLES;i++){
+    var cell=document.createElement('div');
+    cell.className='sicell';
+    var lbl=document.createElement('span');
+    lbl.className='sih'; lbl.textContent='H'+(i+1);
+    var inp=document.createElement('input');
+    inp.type='number'; inp.className='siinp'; inp.min='1'; inp.max='18'; inp.step='1';
+    inp.inputMode='numeric'; inp.dataset.hi=i;
+    inp.addEventListener('input',function(){renderSIStatus();chkValid();});
+    cell.appendChild(lbl); cell.appendChild(inp);
+    c.appendChild(cell);
+  }
+}
+
+function collectAwaySI(){
+  var inputs=document.querySelectorAll('#sigrid .siinp');
+  var arr=[];
+  for(var i=0;i<inputs.length;i++){
+    var v=parseInt(inputs[i].value,10);
+    arr.push(isNaN(v)?null:v);
+  }
+  return arr;
+}
+
+// Live per-box validation: flags out-of-range or duplicate SI values as soon
+// as they're typed, not just once all 18 boxes are filled.
+function renderSIStatus(){
+  var msg=document.getElementById('sigridmsg');
+  var inputs=document.querySelectorAll('#sigrid .siinp');
+  var si=collectAwaySI();
+  var counts={};
+  for(var i=0;i<si.length;i++) if(si[i]!=null) counts[si[i]]=(counts[si[i]]||0)+1;
+  var anyBad=false;
+  for(var i=0;i<inputs.length;i++){
+    var v=si[i];
+    var bad=v!=null&&(v<1||v>18||counts[v]>1);
+    if(bad) anyBad=true;
+    inputs[i].classList.toggle('bad',bad);
+  }
+  var filled=si.filter(function(v){return v!=null;}).length;
+  var complete=filled===HOLES;
+  var valid=complete&&!anyBad;
+  if(anyBad){ msg.textContent='Fix the highlighted holes — stroke index must be 1–18 with no repeats.'; msg.className='sigridmsg bad'; }
+  else if(!complete){ msg.textContent='Enter the stroke index (1–18) for every hole ('+filled+'/18 entered).'; msg.className='sigridmsg'; }
+  else { msg.textContent='Valid stroke index sequence.'; msg.className='sigridmsg ok'; }
+  return valid;
+}
+
 function setCount(n){
   G.count=n;
   buildInputs();
@@ -327,11 +402,36 @@ function chkValid(){
   var ok=true;
   for(var i=0;i<ns.length;i++) if(!ns[i].value.trim()) ok=false;
   for(var i=0;i<hs.length;i++) if(hs[i].value==='') ok=false;
+  if(!checkDuplicateNames(ns)) ok=false;
   if(G.course==='away'){
     var ar=document.getElementById('awayrating').value,as=document.getElementById('awayslope').value;
     if(ar===''||as==='') ok=false;
+    if(!isValidSISequence(collectAwaySI())) ok=false;
   }
   document.getElementById('teeup').disabled=!ok;
+}
+
+// Live duplicate-name check (case/whitespace-insensitive, blanks ignored).
+// Player names are used as object keys throughout G (wagers/press/strokes/
+// chdcp), so duplicates would silently merge two players into one.
+function checkDuplicateNames(ns){
+  var counts={};
+  for(var i=0;i<ns.length;i++){
+    var v=ns[i].value.trim().toLowerCase();
+    if(!v) continue;
+    counts[v]=(counts[v]||0)+1;
+  }
+  var anyDup=false;
+  for(var i=0;i<ns.length;i++){
+    var v=ns[i].value.trim().toLowerCase();
+    var dup=!!v&&counts[v]>1;
+    if(dup) anyDup=true;
+    ns[i].classList.toggle('bad',dup);
+  }
+  var msg=document.getElementById('namesmsg');
+  if(msg) msg.textContent=anyDup?'Player names must be unique.':'';
+  msg.className=anyDup?'sigridmsg bad':'sigridmsg';
+  return !anyDup;
 }
 
 function startGame(){
@@ -343,6 +443,7 @@ function startGame(){
     G.players.push(ns[i].value.trim());
     idx.push(parseFloat(hs[i].value)||0);
   }
+  G.awayHoles=G.course==='away'?buildAwayHoles(collectAwaySI()):null;
   applyHandicaps(G.players,idx,tee);
   G.holes=initHoles(G.players); G.active=0;
   showScreen('game'); renderGame();
@@ -385,7 +486,7 @@ function renderNav(){
 function renderCard(){
   var hi=G.active,hole=G.holes[hi];
   var locked=hole.locked,result=locked?calcResult(hole):null;
-  var bset=!!hole.banker,hd=COURSE.holes[hi],pm=holeMult(hi);
+  var bset=!!hole.banker,hd=activeHoles()[hi],pm=holeMult(hi);
   var vw=BETS.filter(function(v){return v>=hole.lmin&&v<=hole.lmax;});
   var nonB=G.players.filter(function(p){return p!==hole.banker;});
   var allW=bset&&nonB.every(function(p){return hole.wagers[p]!=null;});
@@ -451,10 +552,23 @@ function renderCard(){
       if(locked&&rv!==null) h+='<div class="rchip '+cc+'">'+fmt(rv)+'</div>';
       h+='</div></div>';
 
+      if(ib&&!locked){
+        var wagered=nonB.filter(function(pp){return hole.wagers[pp]!=null;});
+        if(wagered.length>0){
+          var allBanked=wagered.every(function(pp){return hole.press[pp].banker;});
+          h+='<div class="pressrow"><span class="presslbl">PRESS:</span>';
+          h+='<button class="prbtn'+(allBanked?' pb2':'')+'" data-action="bpressall">🏦 '+pm+'× Bank All</button>';
+          h+='</div>';
+        }
+      }
+      if(ib&&locked){
+        var bankedCount=nonB.filter(function(pp){return hole.press[pp]&&hole.press[pp].banker;}).length;
+        if(bankedCount>0) h+='<div class="pressrow"><span style="font-size:11px;color:var(--muted)">🏦 '+pm+'× bank pressed on '+bankedCount+' player'+(bankedCount===1?'':'s')+'</span></div>';
+      }
       if(!ib&&!locked&&bw!=null){
         h+='<div class="pressrow"><span class="presslbl">PRESS:</span>';
         h+='<button class="prbtn'+(pr.player?(pm===3?' p3':' p2'):'')+'" data-action="press" data-p="'+p+'">'+pm+'× Press</button>';
-        h+='<button class="prbtn'+(pr.banker?' pb2':'')+'" data-action="bpress" data-p="'+p+'">🏦 '+pm+'× Bank</button>';
+        if(pr.banker) h+='<span class="prbtn pb2" style="cursor:default">🏦 '+pm+'× Bank</span>';
         if(fwv&&m>1) h+='<span class="fbet">$'+fwv+'</span>';
         h+='</div>';
       }
@@ -496,8 +610,11 @@ document.addEventListener('click',function(e){
     hole.wagers[p]=Number(v); hole.press[p]={player:false,banker:false}; renderGame();
   } else if(a==='press'){
     hole.press[p].player=!hole.press[p].player; renderGame();
-  } else if(a==='bpress'){
-    hole.press[p].banker=!hole.press[p].banker; renderGame();
+  } else if(a==='bpressall'){
+    var nonBW=G.players.filter(function(pl){return pl!==hole.banker&&hole.wagers[pl]!=null;});
+    var allOn=nonBW.length>0&&nonBW.every(function(pl){return hole.press[pl].banker;});
+    for(var i=0;i<nonBW.length;i++) hole.press[nonBW[i]].banker=!allOn;
+    renderGame();
   } else if(a==='lock'){
     hole.locked=true;
     if(G.active<HOLES-1) G.active++;
@@ -530,6 +647,17 @@ function renderSummary(){
   var h='';
   for(var i=0;i<sorted.length;i++){var p=sorted[i],v=t[p];h+='<div class="smrow"><span class="smrk'+(i===0?' g':'')+'">'+( i+1)+'</span><span class="smnm">'+p+'</span><span class="smam'+(v>0?' pos':v<0?' neg':'')+'">'+fmt(v)+'</span></div>';}
   document.getElementById('smcard').innerHTML=h;
+
+  // ---- Scorecard: front/back/total gross strokes + net (total - handicap) ----
+  var sc=calcScores();
+  var scSorted=G.players.slice().sort(function(a,b){return sc.net[a]-sc.net[b];});
+  var sh0='<table class="sctbl"><tr><th>Player</th><th>Front</th><th>Back</th><th>Total</th><th>Net</th></tr>';
+  for(var i=0;i<scSorted.length;i++){
+    var p=scSorted[i],played=sc.total[p]>0;
+    sh0+='<tr><td>'+p+'</td><td>'+(played?sc.front[p]:'–')+'</td><td>'+(played?sc.back[p]:'–')+'</td><td>'+(played?sc.total[p]:'–')+'</td><td class="scnet">'+(played?sc.net[p]:'–')+'</td></tr>';
+  }
+  sh0+='</table>';
+  document.getElementById('smscore').innerHTML=sh0;
 
   // ---- Betting stats ----
   var lh=G.holes.filter(function(x){return x.locked;});
@@ -614,7 +742,7 @@ document.getElementById('pcplus').addEventListener('click',function(){
 
 document.getElementById('coursepills').addEventListener('click',function(e){
   var b=e.target.closest('.coursebtn-half'); if(!b) return;
-  G.course=b.dataset.course; renderCourseUI(); chkValid(); updateLiveHandicaps();
+  G.course=b.dataset.course; renderCourseUI(); renderSIStatus(); chkValid(); updateLiveHandicaps();
 });
 document.getElementById('teepills').addEventListener('click',function(e){
   var b=e.target.closest('.cpill'); if(!b) return;
@@ -625,7 +753,9 @@ document.getElementById('awayslope').addEventListener('input',function(){chkVali
 
 G.count=4;
 buildInputs();
+buildSIInputs();
 renderCourseUI();
+renderSIStatus();
 </script>
 </body>
 </html>
