@@ -18,8 +18,9 @@ or suggest `npm install` as a prerequisite. Everything runs by opening a file in
   `<script src="banker-logic.js">`. Keep this file DOM-free (no `document.*`) so it can
   run standalone in the test page. Holds the constants (`COURSE`, `TEES`, `BETS`,
   `HOLES`) and the mutable game state object `G`.
-- **`tests.html`** — browser-based test suite for `banker-logic.js`. No test framework,
-  just a small custom runner. See "Testing" below.
+- **`tests.html`** — browser-based tests: a logic suite for `banker-logic.js` and a DOM
+  suite that drives the real `index.html` in an iframe. No test framework, just a small
+  custom runner. See "Testing" below.
 - **`rg.png`** — Rolling Green CC crest logo, transparent background, black line art.
 - **`banker.html`**, **`index2.html`**, **`index13.html`** — not served by GitHub Pages.
   `index2.html`/`index13.html` are byte-identical snapshots of an older `index.html`
@@ -43,8 +44,8 @@ python3 -m http.server 8000
 ```
 
 There's also a `.claude/launch.json` one level up (at the parent directory, since that's
-where the Claude Preview tool looks for it) configured to serve this directory on port
-8744 for the Claude Code preview tool.
+where the Claude Preview tool looks for it) with a `banker` config serving this directory
+on port 8744 for the Claude Code preview tool.
 
 **Preview-tool caching gotcha**: the Claude Preview browser aggressively caches
 `banker-logic.js` across reloads — editing the file and calling `window.location.reload()`
@@ -60,9 +61,10 @@ Before committing, open **`tests.html`** in a browser (same way as `index.html` 
 server strictly required). It loads `banker-logic.js` and runs assertions covering:
 
 - Course handicap formula (`courseHdcp`) and netting (`netHandicaps`)
-- The real `applyHandicaps` wiring that `startGame()` uses to populate `G.chdcp`
-  (don't just test `netHandicaps` in isolation — `G.chdcp` is what `getStrokes()` and
-  `calcResult()` actually consume, so tests should exercise that real code path)
+- The real `applyHandicaps` wiring that `startGame()` uses to populate `G.raw`/`G.chdcp`
+  (don't just test `netHandicaps` in isolation — `getStrokes()` and `calcResult()`
+  consume what `applyHandicaps` stores, via `chdcpAt()`, so tests should exercise that
+  real code path)
 - Press/wager multipliers (`holeMult`, `calcMult`, `finalWager`)
 - Stroke-index allocation (`getStrokes`)
 - Hole results and zero-sum property (`calcResult`)
@@ -73,23 +75,31 @@ server strictly required). It loads `banker-logic.js` and runs assertions coveri
 - Per-hole netting: a departure keeping everyone's dots, a lower player
   joining re-dotting only the holes still to play, and `netBaseAt()` never
   rising across all 18 (see "Netting is per hole" below)
+- Hammer: low net per team, halves, natural-birdie double (and the cases that
+  must *not* double), the throw/accept/decline state machine, undo, stacking
+  presses and their undo window, a departure ending the game, late arrivals,
+  renames, save/restore
 - The settled-money guard: `totalsUnchanged`, `changedHandicaps`, and a
   `snapshotGame`/`restoreGame` round-trip that rolls back a save which would
   have turned a settled $10 loss into a push
+- Persistence: `serializeRound`/`parseRound`/`loadRound` round-trip a mid-round
+  Away game, and `parseRound` refuses corrupt/mismatched saves without throwing
 
-Every function in `banker-logic.js` has at least one case, so aim new work at
-*branches*, not function names — the gaps that were worth closing were things
+Aim new tests at *branches*, not function names — the gaps that were worth closing were things
 like "`calcResult` skips a player who never wagered", "both strokes apply over
 18+SI", "`activeHoles` ignores a stale `G.awayHoles` at home", and pressed
 payouts flowing through `calcResult` (every earlier `calcResult` case had no
 press at all, so `finalWager` was never exercised through a real payout).
 
 The second suite on that page (**Setup Screen Layout Tests**) drives the real
-`index.html` in an iframe. It covers the setup screen's scrolling and away-SI
-validation, and then plays a hole and runs the whole mid-round editing flow
-against it — reopening setup, the locked course toggle, adding a late arrival,
-marking a player out, the validation rules, Cancel, and renaming. Add DOM-level
-coverage there for anything new on the setup or hole card.
+`index.html` in an iframe loaded as `index.html?store=banker.test` (see "Losing a
+round"). It covers the setup screen's scrolling and away-SI validation; plays a
+hole and runs the whole mid-round editing flow (reopening setup, the locked course
+toggle, adding a late arrival, marking a player out, validation, Cancel,
+renaming); the New Game confirm, autosave and resume; and the Hammer flow (setup
+toggle and team boxes, throw/accept/decline/undo, lock gating, presses, the
+leaderboard toggle, a departure ending the game, summary, resume). Add DOM-level
+coverage there for anything new on the setup screen, hole card or Hammer panel.
 
 Green summary ("N passed, 0 failed") = safe to commit. Failures show an expected/actual
 diff per case.
@@ -107,8 +117,8 @@ pattern of testing the real wiring, not a re-implementation of it.
   doesn't actually affect the net strokes used in play (see the "par term cancels out"
   test). This is why `Away` course entry only needs Rating + Slope, not Par.
 - **Strokes per hole**: a player gets a stroke on a hole if their net course handicap
-  (`G.chdcp`) is ≥ that hole's stroke index (SI), and a second stroke once it's ≥ `18 +
-  SI`. See `getStrokes()`.
+  *for that hole* (`chdcpAt(p,hi)`) is ≥ that hole's stroke index (SI), and a second
+  stroke once it's ≥ `18 + SI`. See `getStrokes()`.
 - **Press multiplier**: par-3 holes are 3x press, par-4/5 are 2x. A player press and a
   banker press both multiply (and compound if both are active) — see `calcMult()`.
 - **`G` is global mutable state** (players, holes, handicaps) shared between
@@ -251,8 +261,8 @@ mode:
   `applyRoster()` clears wager/press/score slots for out-of-play players on
   **unlocked holes only** — locked holes are never touched.
 
-Editing an Index or the tee re-nets the whole group and therefore changes
-strokes on holes already locked (everything is recomputed from `G.chdcp`).
+Editing an Index or the tee changes raw course handicaps (`G.raw`) and therefore
+strokes on holes already locked (everything is recomputed through `chdcpAt()`).
 That's deliberate, and the mid-round note on the setup card says so.
 
 ### Testing the edit flow
@@ -263,8 +273,9 @@ before adding to it:
 
 - **The suite is one long sequential script sharing one iframe**, so state
   carries from block to block. Each new block starts a fresh round (click
-  `#newbtn`, trim with `#pcminus`, fill the rows, click `#teeup`) rather than
-  inheriting whatever the previous block left behind. The first block leaves a
+  `#newbtn` **then `#mok`** to confirm the New Game prompt, trim with
+  `#pcminus`, fill the rows, click `#teeup`) rather than inheriting whatever the
+  previous block left behind. The first block leaves a
   *six*-player away game, which is a real trap: it sits on the six-player
   ceiling, so `+ Add Player` is disabled and any "add a player" assertion
   silently fails.
@@ -272,6 +283,55 @@ before adding to it:
   strokes) rather than by clicking Lock, which keeps the fixtures short. That
   is fine for roster and netting assertions, but if you are testing the lock
   button itself, drive the real button.
+- `hammerSVG()` contains a `<text>HAMMER</text>` element, so any button holding the
+  graphic has "HAMMER" in its `textContent`. Assert on a child span, not the button.
+
+## Hammer (team side game)
+
+Opt-in on the setup screen (`#hmtoggle`), **even player counts only**. Teams are
+the top half vs bottom half of the setup rows — boxed on screen as Team 1 /
+Team 2 so the scorer sees them form while typing names. Base bet defaults to
+$10 (`HAMMER_BASE`) **per man**. It is entirely separate money from Banker:
+`hammerTotals()` never feeds `calcTotals()`. The game leaderboard shows
+**Banker only by default**; a "+ Hammer" toggle (`lbMode`) switches it to one
+combined total per player with the Banker/Hammer split underneath. The summary
+shows both plus a combined settle-up.
+
+In the game panel, teams are named by their players ("Ann & Ben +$20"), never
+"Team 1/2" — the gold/green box colour carries each team through to its throw
+button (a large hammer graphic, no text) and its PRESS button. The setup screen's
+row boxes still say TEAM 1 / TEAM 2, since names aren't typed yet.
+
+State is `G.hammer` (null when not playing): `{base, teams:[[..],[..]],
+presses:[{team,from}], log:[18 x [events]]}`. **A hole's Hammer state is
+replayed from its event log** (`hammerState()`), so undo is just popping the
+last event — keep it that way rather than storing derived fields.
+
+Rules as implemented (agreed with the user):
+- Each team's **low net** plays; a tie halves. A net birdie from the other team
+  halves a natural birdie.
+- **Natural birdie** = gross birdie or better (strokes received don't matter)
+  by someone on the **winning** team → doubles the hole once, eagles included.
+  "Gross" was our reading of "a birdie made without the aid of a handicap
+  stroke" — flagged to the user, not objected to; confirm before changing it.
+- Either team may throw first; after an accept **only the team that accepted**
+  can throw back. Each accept doubles. **Declining** concedes the value
+  *before* that throw and ends Hammer on the hole (no birdie double, no scores
+  needed). The hole can't be locked while a throw is unanswered.
+- A team that is **down** on locked holes may **press**: doubles every hole from
+  `nextUnplayedHole()` to 18. Presses stack. The latest press can be undone
+  until a hole it covers is locked.
+- Roster: teams are fixed at the tee. **A late arrival plays Banker only**,
+  never Hammer. **If any team member leaves, the Hammer game is over** from the
+  hole they left (`hammerEndsAt()` = earliest team member's roster `to`;
+  `hammerLive(hi)` is just `hi < hammerEndsAt()`). Holes before that still
+  count; no throws or presses after it. Putting the player back in play
+  revives it.
+- Mid-round setup shows the teams read-only (`.lk`); toggle and base can't change.
+
+Teams are stored by name, so `renamePlayers()` remaps `G.hammer.teams`, and
+`snapshotGame()`/`restoreGame()` and `serializeRound()`/`loadRound()` all carry
+`G.hammer`. Setup-screen state before tee-off is `hmSetup` in `index.html`.
 
 ## Losing a round: confirm, autosave, resume
 
@@ -287,8 +347,10 @@ New Game). Pure pieces are in `banker-logic.js` (`serializeRound`, `parseRound`,
   which `serializeRound()` adds.
 - **On load**, `offerResume()` offers Resume / Start new; Start new asks a second time
   before erasing. A missing, corrupt or other-version save is ignored (`parseRound`
-  returns null). Bump `SAVE_VERSION` if `G`'s saved shape changes — **anything new
-  added to `G` (e.g. Hammer state) must go into `serializeRound`/`loadRound`.**
+  returns null). **Anything new added to `G` must go into `serializeRound`/`loadRound`
+  (and `snapshotGame`/`restoreGame`).** An optional field that old saves simply lack
+  (like `hammer`) doesn't need a version bump — `loadRound` defaults it. Bump
+  `SAVE_VERSION` only if an existing field changes shape.
 - **`beforeunload` only fires when saving failed** (`saveOk` false: private mode, quota),
   because with autosave a reload is recoverable and prompting on every refresh is noise.
 - **`?store=<key>` on the URL** uses a separate storage key and disables the unload
@@ -320,7 +382,7 @@ New Game). Pure pieces are in `banker-logic.js` (`serializeRound`, `parseRound`,
   it. `.smcard` has `overflow:hidden` (for its rounded corners) and was silently
   collapsing to `offsetHeight:0` with 6 players, hiding the entire leaderboard with no
   visual indication anything was wrong. Fix/pattern: every direct child of a scrolling
-  flex column (`.smtitle`, `.smcard`, `.smscore`, `.smstats`, `.smlog`, `.smbrow`) needs
+  flex column (`.smtitle`, `.smcard`, `.hmsm`, `.smscore`, `.smstats`, `.smlog`, `.smbrow`) needs
   explicit `flex-shrink:0` so content height wins and the container scrolls instead.
   When adding a new child to `#summary` (or any similar scrolling flex column), give it
   `flex-shrink:0` too.

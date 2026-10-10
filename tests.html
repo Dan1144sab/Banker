@@ -715,6 +715,232 @@ test('parseRound refuses anything it cannot trust, without throwing',function(){
   G.roster={};
 });
 
+// ---- Hammer ----
+// Four players, everyone off scratch unless a test says otherwise, so gross
+// is net. Hole 1 is a par 4, SI 9.
+function hammerFixture(indexes){
+  G.course='home'; G.awayHoles=null; G.tee='white';
+  G.players=['A','B','C','D']; G.roster=initRoster(G.players); G.active=0;
+  applyHandicaps(G.players,indexes||[0,0,0,0],TEES.white);
+  G.holes=initHoles(G.players);
+  G.hammer=initHammer(G.players,10);
+}
+function hscore(hi,a,b,c,d){
+  var st=G.holes[hi].strokes; st.A=String(a); st.B=String(b); st.C=String(c); st.D=String(d);
+}
+function hammerDone(){ G.hammer=null; G.roster={}; }
+
+test('Hammer needs an even group, split top half vs bottom half',function(){
+  assertEqual([0,1,2,3,4,5,6].map(canPlayHammer),[false,false,true,false,true,false,true]);
+  assertEqual(hammerTeamsFor(['A','B','C','D']),[['A','B'],['C','D']]);
+  assertEqual(hammerTeamsFor(['A','B','C','D','E','F']),[['A','B','C'],['D','E','F']]);
+  assertEqual(hammerTeamsFor(['A','B']),[['A'],['B']]);
+  var hm=initHammer(['A','B','C','D'],10);
+  assertEqual(hm.base,10); assertEqual(hm.presses,[]); assertEqual(hm.log.length,18);
+  assertEqual(HAMMER_BASE,10,'the setup default');
+});
+
+test('each team\'s low net plays; a tie halves the hole',function(){
+  hammerFixture();
+  hscore(0,4,6,5,5);
+  var r=hammerHole(0);
+  assertEqual(r.win,0); assertEqual(r.value,10);
+  assertEqual(r.res,{A:10,B:10,C:-10,D:-10},'$10 a man');
+  hscore(0,5,6,5,7);
+  r=hammerHole(0);
+  assertEqual(r.win,-1); assertEqual(r.res,{A:0,B:0,C:0,D:0});
+  hscore(0,5,'',5,7);
+  assertEqual(hammerHole(0),null,'no result until every team member has a score');
+  hammerDone();
+});
+
+test('a natural birdie on the winning team doubles the hole',function(){
+  hammerFixture();
+  hscore(0,3,5,4,4);
+  var r=hammerHole(0);
+  assertEqual(r.win,0); assertTrue(r.birdie); assertEqual(r.value,20);
+  assertEqual(r.res.C,-20);
+  hscore(0,2,5,4,4);
+  assertEqual(hammerHole(0).value,20,'an eagle is a natural birdie or better — still one double, not two');
+  hammerDone();
+});
+
+test('a net birdie from the other team halves a natural birdie, with no double',function(){
+  // C off 10 has a stroke on SI 9: a gross 4 is a net 3.
+  hammerFixture([0,0,10,0]);
+  assertEqual(getStrokes('C',0),1,'fixture: C strokes here');
+  hscore(0,3,5,4,6);
+  var r=hammerHole(0);
+  assertEqual(r.win,-1,'3 v net 3 is halved'); assertEqual(r.birdie,false);
+  assertEqual(r.res.A,0);
+  hammerDone();
+});
+
+test('a birdie made with a stroke does not double; nor does a natural birdie that loses',function(){
+  // B off 10 strokes once on SI 9 (net birdie off a gross par).
+  hammerFixture([0,10,0,0]);
+  hscore(0,5,4,4,5);
+  var r=hammerHole(0);
+  assertEqual(r.win,0,'B\'s net 3 wins'); assertEqual(r.birdie,false); assertEqual(r.value,10);
+  // B off 30 strokes twice: a gross par is a net eagle, beating C's natural birdie.
+  hammerFixture([0,30,0,0]);
+  assertEqual(getStrokes('B',0),2,'fixture: B strokes twice here');
+  hscore(0,5,4,3,5);
+  r=hammerHole(0);
+  assertEqual(r.win,0); assertEqual(r.birdie,false,'C\'s natural birdie lost the hole');
+  assertEqual(r.value,10);
+  hammerDone();
+});
+
+test('throwing and accepting: either team throws first, then only the team that accepted',function(){
+  hammerFixture();
+  assertTrue(canThrowHammer(0,0)&&canThrowHammer(0,1),'nobody holds it yet');
+  assertTrue(hammerThrow(0,0));
+  assertTrue(hammerPending(0));
+  assertTrue(!canThrowHammer(0,0)&&!canThrowHammer(0,1),'nobody throws while an answer is due');
+  hscore(0,4,4,5,5);
+  assertEqual(hammerHole(0),null,'and the hole has no result while it is due');
+  assertTrue(hammerAnswer(0,true));
+  var s=hammerState(0);
+  assertEqual(s.doubles,1); assertEqual(s.holder,1,'accepting hands the hammer to the team that accepted');
+  assertEqual(hammerHoleValue(0),20);
+  assertTrue(!hammerThrow(0,0),'the team that threw cannot throw again');
+  assertTrue(hammerThrow(0,1)); assertTrue(hammerAnswer(0,true));
+  assertEqual(hammerState(0).holder,0); assertEqual(hammerHoleValue(0),40);
+  assertEqual(hammerHole(0).res.A,40,'the result plays at the doubled value');
+  hammerDone();
+});
+
+test('declining concedes what the hole was worth before that throw, birdie or not',function(){
+  hammerFixture();
+  hammerThrow(0,0); hammerAnswer(0,true);   // $20
+  hammerThrow(0,1); hammerAnswer(0,false);  // Team 1 declines Team 2's throw
+  var s=hammerState(0);
+  assertEqual(s.conceded,0); assertEqual(s.pending,null);
+  assertTrue(!canThrowHammer(0,0)&&!canThrowHammer(0,1),'the Hammer is over on this hole');
+  hscore(0,3,4,5,5); // Team 1 would have won with a natural birdie
+  var r=hammerHole(0);
+  assertEqual(r.win,1); assertEqual(r.conceded,true); assertEqual(r.birdie,false);
+  assertEqual(r.value,20,'$20 — not the $40 that was declined, and not doubled for the birdie');
+  assertEqual(r.res,{A:-20,B:-20,C:20,D:20});
+  hscore(0,'','','','');
+  assertTrue(hammerHole(0)!==null,'a conceded hole needs no scores');
+  hammerDone();
+});
+
+test('undo walks the calls back one at a time, and not on a locked hole',function(){
+  hammerFixture();
+  hammerThrow(0,0); hammerAnswer(0,false);
+  assertEqual(hammerState(0).conceded,1);
+  assertTrue(hammerUndo(0));
+  assertEqual(hammerState(0).pending,0,'an accidental decline goes back to the question');
+  assertTrue(hammerUndo(0));
+  assertEqual(hammerState(0),{doubles:0,holder:null,pending:null,conceded:null},'an accidental throw is gone');
+  assertTrue(!hammerUndo(0),'nothing left to undo');
+  hammerThrow(0,1); hammerAnswer(0,true);
+  G.holes[0].locked=true;
+  assertTrue(!canUndoHammer(0)&&!hammerUndo(0),'a locked hole is settled');
+  assertTrue(!hammerThrow(0,1)&&!hammerAnswer(0,true));
+  assertEqual(hammerState(0).doubles,1);
+  hammerDone();
+});
+
+test('only the team that is down can press; presses stack from the first unplayed hole',function(){
+  hammerFixture();
+  assertTrue(!canHammerPress(0)&&!canHammerPress(1),'nobody is down at the start');
+  hscore(0,4,5,5,5); G.holes[0].locked=true;
+  assertEqual(hammerTeamTotals(),[20,-20]);
+  assertTrue(!canHammerPress(0),'the team that is up cannot press');
+  assertTrue(!hammerPress(0));
+  assertTrue(hammerPress(1));
+  assertEqual(G.hammer.presses,[{team:1,from:1}]);
+  assertEqual(hammerHoleValue(0),10,'the settled hole is untouched');
+  assertEqual(hammerHoleValue(1),20); assertEqual(hammerHoleValue(17),20,'through the 18th');
+  assertTrue(hammerPress(1),'still down, so they can press again');
+  assertEqual(hammerHoleValue(1),40);
+  hammerThrow(1,0); hammerAnswer(1,true);
+  assertEqual(hammerHoleValue(1),80,'hammers double on top of presses');
+  hammerDone();
+});
+
+test('a press can be undone until a hole it covers is locked',function(){
+  hammerFixture();
+  hscore(0,4,5,5,5); G.holes[0].locked=true;
+  hammerPress(1);
+  assertTrue(canUndoHammerPress());
+  assertTrue(hammerUndoPress());
+  assertEqual(G.hammer.presses,[]); assertEqual(hammerHoleValue(1),10);
+  hammerPress(1);
+  hscore(1,6,6,5,6); G.holes[1].locked=true; // hole 2 is a par 5 — no birdies
+  assertTrue(!canUndoHammerPress()&&!hammerUndoPress(),'hole 2 was played under it');
+  assertEqual(G.hammer.presses.length,1);
+  assertEqual(hammerTeamTotals(),[-20,20],'the pressed hole was worth $20 a man');
+  assertTrue(canHammerPress(0)&&!canHammerPress(1),'so now Team 1 is down and it is their press');
+  hammerDone();
+});
+
+test('a team member leaving ends the Hammer from that hole; holes before it still count',function(){
+  hammerFixture();
+  hscore(0,4,5,5,5); G.holes[0].locked=true;
+  assertEqual(hammerEndsAt(),18); assertEqual(hammerEndedBy(),null);
+  setPlayerHidden('B',true,1);
+  assertEqual(hammerEndsAt(),1); assertEqual(hammerEndedBy(),'B');
+  assertTrue(hammerLive(0)&&!hammerLive(1)&&!hammerLive(17));
+  assertEqual(hammerTotals(),{A:10,B:10,C:-10,D:-10},'hole 1 stands');
+  hscore(1,4,'',5,5);
+  assertEqual(hammerHole(1),null,'no Hammer on hole 2');
+  assertTrue(!canThrowHammer(1,0)&&!hammerThrow(1,0));
+  assertTrue(!canHammerPress(1),'nothing left to press');
+  // a hammer thrown before the exit no longer holds up the hole
+  G.hammer.log[1].push({t:'throw',team:0});
+  assertTrue(!hammerPending(1));
+  // putting the player back in brings the Hammer back
+  setPlayerHidden('B',false,1);
+  assertEqual(hammerEndsAt(),18);
+  hammerDone();
+});
+
+test('a late arrival is not on a Hammer team',function(){
+  hammerFixture();
+  addPlayerToGame('E',3);
+  assertEqual(hammerTeamOf('E'),-1);
+  assertEqual(hammerTeamOf('C'),1);
+  hscore(3,4,5,5,5); G.holes[3].strokes.E='2';
+  assertEqual(hammerHole(3).res,{A:10,B:10,C:-10,D:-10},'E\'s eagle plays no part');
+  assertEqual(hammerEndsAt(),18,'and their arrival does not end the game');
+  hammerDone();
+});
+
+test('renaming a player carries them through the Hammer teams',function(){
+  hammerFixture();
+  renamePlayers(['A','Bee','D','C']);
+  assertEqual(G.hammer.teams,[['A','Bee'],['D','C']],'a C/D swap swaps their team places too');
+  hammerDone();
+});
+
+test('Hammer survives a save, a snapshot rollback, and an older save without it',function(){
+  hammerFixture();
+  hammerThrow(0,0); hammerAnswer(0,true);
+  hscore(0,4,5,5,5); G.holes[0].locked=true; hammerPress(1);
+  var want=JSON.stringify(G.hammer);
+  var text=serializeRound();
+  var snap=snapshotGame();
+  G.hammer=null;
+  loadRound(parseRound(text));
+  assertEqual(JSON.stringify(G.hammer),want,'saved and reloaded');
+  G.hammer.presses=[];
+  restoreGame(snap);
+  assertEqual(JSON.stringify(G.hammer),want,'rolled back by restoreGame');
+  var old=JSON.parse(text); delete old.hammer;
+  var o=parseRound(JSON.stringify(old));
+  assertTrue(o!==null,'a pre-Hammer save still loads');
+  loadRound(o);
+  assertEqual(G.hammer,null);
+  old.hammer={teams:[['A']],log:[],presses:[]};
+  assertEqual(parseRound(JSON.stringify(old)),null,'a mangled hammer field is refused');
+  hammerDone();
+});
+
 // ---- fmt ----
 test('fmt formats signed dollar amounts, zero as E',function(){
   assertEqual(fmt(0),'E');
@@ -1274,6 +1500,165 @@ document.title=(fail?'✗ FAIL':'✓ PASS')+' — Banker Logic Tests';
       fw.localStorage.setItem(KEY,'{corrupt');
       fw.offerResume();
       addResult('a corrupt save is ignored rather than breaking load',!modalOn(),'modal on='+modalOn());
+      fw.localStorage.removeItem(KEY);
+
+      // ---- Hammer: setup ----
+      fw.showScreen('summary');
+      fd.getElementById('newbtn').click();
+      if(modalOn()) fd.getElementById('mok').click();
+      fd.querySelector('[data-course="home"]').click();
+      var hmt=fd.getElementById('hmtoggle');
+      function rowsN(n){
+        while(fd.querySelectorAll('#ninputs .prow').length>n) fd.getElementById('pcminus').click();
+        while(fd.querySelectorAll('#ninputs .prow').length<n) fd.getElementById('pcplus').click();
+      }
+      if(fw.hmSetup.on){ rowsN(4); hmt.click(); } // start from off
+      rowsN(3);
+      addResult('with an odd group the Hammer toggle is disabled and says why',
+        hmt.disabled&&/even number/.test(fd.getElementById('hmsub').textContent),
+        'disabled='+hmt.disabled+', sub="'+fd.getElementById('hmsub').textContent+'"');
+      rowsN(4);
+      addResult('with an even group it can be turned on',!hmt.disabled,'disabled='+hmt.disabled);
+      hmt.click();
+      var tr=fd.querySelectorAll('#ninputs .prow');
+      addResult('turning Hammer on boxes the rows into Team 1 (top half) and Team 2 (bottom half)',
+        tr[0].classList.contains('tmtop')&&tr[0].classList.contains('t0')&&tr[1].classList.contains('tmbot')&&tr[1].classList.contains('t0')
+        &&tr[2].classList.contains('tmtop')&&tr[2].classList.contains('t1')&&tr[3].classList.contains('tmbot')
+        &&tr[0].dataset.teamlbl==='TEAM 1'&&tr[2].dataset.teamlbl==='TEAM 2',
+        [].map.call(tr,function(r){return r.className;}).join(' | '));
+      addResult('the base bet defaults to $10',
+        fd.getElementById('hmbase').value==='10'&&fd.getElementById('hmopts').style.display!=='none',
+        'base='+fd.getElementById('hmbase').value);
+      rowsN(6);
+      tr=fd.querySelectorAll('#ninputs .prow');
+      addResult('six players box as three a side',
+        tr[2].classList.contains('tmbot')&&tr[3].classList.contains('tmtop')&&tr[5].classList.contains('t1'),
+        [].map.call(tr,function(r){return r.className;}).join(' | '));
+      rowsN(5);
+      addResult('dropping to an odd group removes the boxes',
+        !fd.querySelector('#ninputs .prow.tm')&&hmt.disabled,'boxed rows='+fd.querySelectorAll('#ninputs .prow.tm').length);
+      rowsN(4);
+      var hn=fd.querySelectorAll('#ninputs .ni'),hh=fd.querySelectorAll('#ninputs .hi');
+      var hw=['Ann','Ben','Cal','Dee'];
+      for(var i=0;i<4;i++){
+        hn[i].value=hw[i]; hn[i].dispatchEvent(new fw.Event('input'));
+        hh[i].value='0'; hh[i].dispatchEvent(new fw.Event('input'));
+      }
+      fd.getElementById('hmbase').value=''; fd.getElementById('hmbase').dispatchEvent(new fw.Event('input'));
+      addResult('a blank base bet holds up Tee It Up',fd.getElementById('teeup').disabled===true,'');
+      fd.getElementById('hmbase').value='10'; fd.getElementById('hmbase').dispatchEvent(new fw.Event('input'));
+      fd.getElementById('teeup').click();
+      addResult('teeing off with Hammer on sets up the two teams and the stake',
+        fw.G.hammer&&JSON.stringify(fw.G.hammer.teams)==='[["Ann","Ben"],["Cal","Dee"]]'&&fw.G.hammer.base===10
+        &&!!fd.querySelector('#hmbar .hmbar'),
+        'hammer='+JSON.stringify(fw.G.hammer&&fw.G.hammer.teams));
+
+      // ---- Hammer: on the hole ----
+      var hh1=fw.G.holes[0];
+      hh1.banker='Ann'; hh1.wagers.Ben=10; hh1.wagers.Cal=10; hh1.wagers.Dee=10;
+      hh1.strokes.Ann='3'; hh1.strokes.Ben='5'; hh1.strokes.Cal='4'; hh1.strokes.Dee='5';
+      fw.renderGame();
+      function hbtn(a,v){return fd.querySelector('#hmbar [data-action="'+a+'"]'+(v!=null?'[data-v="'+v+'"]':''));}
+      addResult('before the hole is locked the panel previews the result',
+        /If locked now: Ann & Ben win \$20\/man/.test(fd.getElementById('hmbar').textContent),
+        fd.getElementById('hmbar').textContent.slice(0,200));
+      hbtn('hthrow',0).click();
+      var lb=fd.querySelector('.lbtn');
+      addResult('a throw asks the other team to accept or decline, with the money on each button',
+        !!hbtn('haccept')&&/\$20\/man/.test(hbtn('haccept').textContent)&&/\$10\/man/.test(hbtn('hdecline').textContent),
+        hbtn('haccept')&&hbtn('haccept').textContent+' / '+hbtn('hdecline').textContent);
+      addResult('the hole cannot be locked until the hammer is answered',
+        lb.disabled&&/Answer the Hammer/.test(lb.textContent),'lock="'+lb.textContent+'" disabled='+lb.disabled);
+      addResult('an accidental throw can be undone',/Undo throw/.test(hbtn('hundo').textContent),'');
+      hbtn('hdecline').click();
+      addResult('declining ends the Hammer on the hole',
+        /Cal & Dee declined/.test(fd.getElementById('hmbar').textContent)&&!hbtn('hthrow',0),
+        fd.getElementById('hmbar').textContent.slice(0,200));
+      hbtn('hundo').click();
+      addResult('undoing a decline puts the question back',!!hbtn('haccept'),'');
+      hbtn('haccept').click();
+      addResult('accepting doubles the hole and hands Team 2 the hammer',
+        /\$20\/man this hole/.test(fd.getElementById('hmbar').textContent)&&hbtn('hthrow',0).disabled&&!hbtn('hthrow',1).disabled,
+        fd.getElementById('hmbar').textContent.slice(0,200));
+      fd.querySelector('.lbtn').click();
+      addResult('locking settles it — Ann\'s natural birdie doubles the accepted $20',
+        JSON.stringify(fw.hammerTotals())==='{"Ann":40,"Ben":40,"Cal":-40,"Dee":-40}',
+        JSON.stringify(fw.hammerTotals()));
+
+      // ---- Hammer: presses ----
+      addResult('only the team that is down is offered a press',
+        !hbtn('hpress',0)&&!!hbtn('hpress',1)&&/holes 2–18/.test(hbtn('hpress',1).textContent),
+        'T1 btn='+!!hbtn('hpress',0)+', T2 btn='+!!hbtn('hpress',1));
+      hbtn('hpress',1).click();
+      addResult('pressing doubles the holes still to play, and shows on the panel',
+        fw.hammerHoleValue(1)===20&&/Cal & Dee pressed from H2/.test(fd.getElementById('hmbar').textContent),
+        'hole 2 worth '+fw.hammerHoleValue(1));
+      hbtn('hunpress').click();
+      addResult('an accidental press comes straight off',
+        fw.G.hammer.presses.length===0&&fw.hammerHoleValue(1)===10,'presses='+fw.G.hammer.presses.length);
+
+      // ---- Hammer: panel layout ----
+      var hmEl=fd.getElementById('hmbar');
+      addResult('the team boxes are one line each — names and money, no Team 1/2 labels',
+        !/Team [12]/i.test(hmEl.textContent)
+        &&/^Ann & Ben\+\$40$/.test(hmEl.querySelectorAll('.hmteam')[0].textContent)
+        &&/^Cal & Dee-\$40$/.test(hmEl.querySelectorAll('.hmteam')[1].textContent),
+        [].map.call(hmEl.querySelectorAll('.hmteam'),function(e){return e.textContent;}).join(' | '));
+      addResult('the press button is the hammer graphic, PRESS, and the holes it doubles',
+        !!hbtn('hpress',1).querySelector('svg')&&/^Pressdoubles holes 2–18$/.test(hbtn('hpress',1).querySelector(':scope > span').textContent),
+        '"'+hbtn('hpress',1).querySelector(':scope > span').textContent+'"');
+
+      // ---- Hammer: leaderboard ----
+      var lbEl=fd.getElementById('lb');
+      addResult('the leaderboard shows Banker only by default',
+        fw.lbMode==='banker'&&!/Hammer [+-]/.test(lbEl.textContent)
+        &&fd.querySelectorAll('#lb .lbr').length===4&&/\+ Hammer/.test(fd.getElementById('lbinc').textContent),
+        lbEl.textContent.slice(0,160));
+      fd.getElementById('lbinc').click();
+      var annRow=[].filter.call(fd.querySelectorAll('#lb .lbr'),function(r){return /Ann/.test(r.textContent);})[0];
+      var wantAnn=fw.calcTotals().Ann+fw.hammerTotals().Ann;
+      addResult('the + Hammer toggle folds the Hammer in, with both games shown underneath',
+        fd.querySelectorAll('#lb .lbr').length===4&&fd.getElementById('lbinc').classList.contains('on')
+        &&annRow.querySelector('.lba').textContent===fw.fmt(wantAnn)&&/Banker .* · Hammer \+\$40/.test(annRow.textContent),
+        'Ann row="'+(annRow&&annRow.textContent)+'", want '+fw.fmt(wantAnn));
+      fd.getElementById('lbinc').click();
+      addResult('and toggles back to Banker only',fw.lbMode==='banker'&&!/Hammer \+/.test(lbEl.textContent),'');
+
+      // ---- Hammer: mid-round setup is read-only ----
+      fd.getElementById('editbtn').click();
+      addResult('mid-round, the Hammer card names the teams and is locked',
+        hmt.classList.contains('lk')&&/Ann & Ben vs Cal & Dee/.test(fd.getElementById('hmsub').textContent)
+        &&!fd.querySelector('#ninputs .prow.tm'),
+        'sub="'+fd.getElementById('hmsub').textContent+'"');
+      fd.getElementById('cancelsetup').click();
+
+      // ---- Hammer: a team member leaving ends it ----
+      fd.getElementById('editbtn').click();
+      var benCb=[].filter.call(fd.querySelectorAll('#ninputs .prow'),function(r){return r.dataset.player==='Ben';})[0].querySelector('input[type=checkbox]');
+      benCb.checked=false; benCb.dispatchEvent(new fw.Event('change'));
+      fd.getElementById('addplayer').click();
+      var nr=fd.querySelectorAll('#ninputs .prow'); nr=nr[nr.length-1];
+      nr.querySelector('.ni').value='Eve'; nr.querySelector('.ni').dispatchEvent(new fw.Event('input'));
+      nr.querySelector('.hi').value='0'; nr.querySelector('.hi').dispatchEvent(new fw.Event('input'));
+      fd.getElementById('teeup').click();
+      addResult('with Ben out, the Hammer panel says the game is over from hole 2',
+        fw.G.active===1&&/Hammer game is over/.test(fd.getElementById('hmbar').textContent)
+        &&/Ben left after hole 1/.test(fd.getElementById('hmbar').textContent)&&!fd.querySelector('#hmbar [data-action="hthrow"]'),
+        'active='+fw.G.active+' '+fd.getElementById('hmbar').textContent.slice(0,200));
+      addResult('hole 1 still counts, and the newcomer is not on the Hammer',
+        fw.hammerTotals().Ann===40&&!('Eve' in fw.hammerTotals()),JSON.stringify(fw.hammerTotals()));
+
+      // ---- Hammer: summary and resume ----
+      fd.getElementById('sumbtn').click();
+      var smh=fd.getElementById('smhammer');
+      addResult('the summary shows the Hammer and a combined settle-up',
+        smh.style.display!=='none'&&/Settle up/.test(smh.textContent)&&/Ann & Ben/.test(smh.textContent),
+        smh.textContent.slice(0,120));
+      fd.getElementById('backbtn').click();
+      var wantHm=JSON.stringify(fw.G.hammer);
+      fw.G.hammer=null; fw.gameLive=false;
+      fw.offerResume(); fd.getElementById('mok').click();
+      addResult('a resumed round brings its Hammer back',JSON.stringify(fw.G.hammer)===wantHm,'');
       fw.localStorage.removeItem(KEY);
     }catch(e){
       addResult('layout tests threw an error',false,e.message);
