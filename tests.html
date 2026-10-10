@@ -247,6 +247,429 @@ test('initHoles builds 18 unlocked holes with blank wagers/scores for each playe
   assertEqual(holes[0].strokes,{A:'',B:''});
 });
 
+// ---- Roster: late arrivals and players who leave early ----
+// These all reset G.roster at the end: rosterEntry() falls back to "in for
+// the whole round", and the tests above rely on that fallback.
+
+test('initRoster puts everyone in play from hole 1 with no exit',function(){
+  G.players=['A','B'];
+  G.roster=initRoster(G.players);
+  assertEqual(G.roster,{A:{from:0,to:null},B:{from:0,to:null}});
+  assertEqual(holePlayers(0),['A','B']);
+  assertEqual(holePlayers(17),['A','B']);
+  G.roster={};
+});
+
+test('rosterEntry defaults a player with no roster entry to the whole round',function(){
+  G.players=['A'];
+  G.roster={};
+  assertTrue(playerInHole('A',0),'hole 1');
+  assertTrue(playerInHole('A',17),'hole 18');
+  assertTrue(!isHiddenPlayer('A'),'no entry is not hidden');
+});
+
+test('nextUnplayedHole is the hole after the LAST locked one, not the first gap',function(){
+  G.players=['A'];
+  G.holes=initHoles(G.players);
+  assertEqual(nextUnplayedHole(),0,'nothing locked yet');
+  G.holes[0].locked=true; G.holes[1].locked=true; G.holes[2].locked=true;
+  assertEqual(nextUnplayedHole(),3);
+  // Hole 2 unlocked to fix a typo must not drag the boundary back to index 1.
+  G.holes[1].locked=false;
+  assertEqual(nextUnplayedHole(),3,'an earlier hole reopened for editing keeps the boundary');
+});
+
+test('addPlayerToGame gives a late arrival a slot in every hole but only plays them from `from` on',function(){
+  G.players=['A','B'];
+  G.roster=initRoster(G.players);
+  G.holes=initHoles(G.players);
+  G.holes[0].locked=true; G.holes[1].locked=true;
+  addPlayerToGame('Late',nextUnplayedHole());
+  assertEqual(G.players,['A','B','Late']);
+  assertEqual(G.roster.Late,{from:2,to:null});
+  assertEqual(G.holes[0].strokes.Late,'','a slot exists on every hole so nothing reads undefined');
+  assertEqual(G.holes[0].wagers.Late,null);
+  assertEqual(holePlayers(0),['A','B'],'holes played before they arrived do not include them');
+  assertEqual(holePlayers(1),['A','B']);
+  assertEqual(holePlayers(2),['A','B','Late'],'in play from the first unplayed hole');
+  G.roster={};
+});
+
+test('setPlayerHidden keeps the holes a player played and drops them from the rest',function(){
+  G.players=['A','B','C'];
+  G.roster=initRoster(G.players);
+  G.holes=initHoles(G.players);
+  for(var i=0;i<9;i++) G.holes[i].locked=true;
+  setPlayerHidden('C',true,nextUnplayedHole());
+  assertEqual(G.roster.C,{from:0,to:9});
+  assertTrue(isHiddenPlayer('C'),'C is out for the rest of the round');
+  assertEqual(holePlayers(8),['A','B','C'],'hole 9 was played with C');
+  assertEqual(holePlayers(9),['A','B'],'hole 10 onward is without C');
+  assertEqual(visiblePlayers(),['A','B']);
+  setPlayerHidden('C',false);
+  assertEqual(holePlayers(9),['A','B','C'],'putting C back in restores the remaining holes');
+  G.roster={};
+});
+
+test('calcResult only settles the players in play on that hole',function(){
+  G.players=['Banker','P1','Late'];
+  G.chdcp={Banker:0,P1:0,Late:0};
+  G.roster={Banker:{from:0,to:null},P1:{from:0,to:null},Late:{from:5,to:null}};
+  var hole={hole:1,banker:'Banker',
+    wagers:{Banker:null,P1:10,Late:10},
+    press:{Banker:{player:false,banker:false},P1:{player:false,banker:false},Late:{player:false,banker:false}},
+    strokes:{Banker:4,P1:5,Late:3}};
+  var res=calcResult(hole);
+  assertEqual(res.Late,undefined,'Late was not there for hole 1, so nothing settles for them');
+  assertEqual(res.P1,-10);
+  assertEqual(res.Banker,10,'banker only collects from the players actually in the hole');
+  G.roster={};
+});
+
+test('calcTotals keeps the winnings of a player who left after the holes they played',function(){
+  G.players=['Banker','Gone'];
+  G.chdcp={Banker:0,Gone:0};
+  G.roster={Banker:{from:0,to:null},Gone:{from:0,to:2}};
+  G.holes=initHoles(G.players);
+  for(var i=0;i<3;i++){
+    G.holes[i].locked=true;
+    G.holes[i].banker='Banker';
+    G.holes[i].wagers.Gone=10;
+    G.holes[i].strokes.Banker='5';
+    G.holes[i].strokes.Gone='4';
+  }
+  var t=calcTotals();
+  assertEqual(t.Gone,20,'holes 1-2 were played with Gone and still pay out; hole 3 was not');
+  assertEqual(t.Banker,-20);
+  G.roster={};
+});
+
+test('renamePlayers remaps every name-keyed map, the banker included',function(){
+  G.players=['Old','B'];
+  G.hdcp={Old:12,B:3};
+  G.chdcp={Old:10,B:0};
+  G.roster=initRoster(G.players);
+  G.holes=initHoles(G.players);
+  G.holes[0].banker='Old';
+  G.holes[0].wagers.B=25;
+  G.holes[0].strokes.Old='5';
+  renamePlayers(['New','B']);
+  assertEqual(G.players,['New','B']);
+  assertEqual(G.hdcp,{New:12,B:3});
+  assertEqual(G.chdcp,{New:10,B:0});
+  assertEqual(G.roster.New,{from:0,to:null});
+  assertEqual(G.holes[0].banker,'New');
+  assertEqual(G.holes[0].strokes.New,'5');
+  assertEqual(G.holes[0].wagers.B,25);
+  assertTrue(!('Old' in G.chdcp),'the old key is gone, not left behind as a duplicate player');
+  G.roster={};
+});
+
+test('renamePlayers survives two players swapping names',function(){
+  G.players=['A','B'];
+  G.chdcp={A:1,B:2};
+  G.hdcp={A:1,B:2};
+  G.roster=initRoster(G.players);
+  G.holes=initHoles(G.players);
+  G.holes[0].strokes.A='4'; G.holes[0].strokes.B='7';
+  renamePlayers(['B','A']);
+  assertEqual(G.players,['B','A']);
+  assertEqual(G.chdcp,{B:1,A:2},'a sequential rename would have clobbered one of them');
+  assertEqual(G.holes[0].strokes.B,'4');
+  assertEqual(G.holes[0].strokes.A,'7');
+  G.roster={};
+});
+
+test('applyRoster clears out-of-play slots on unlocked holes and never touches locked ones',function(){
+  G.players=['A','B','Gone'];
+  G.chdcp={A:0,B:0,Gone:0};
+  G.holes=initHoles(G.players);
+  // Hole 1 locked with Gone in it; hole 2 open with Gone part-way entered.
+  G.holes[0].locked=true; G.holes[0].banker='Gone';
+  G.holes[0].wagers.A=10; G.holes[0].strokes.Gone='4'; G.holes[0].strokes.A='5';
+  G.holes[1].banker='Gone'; G.holes[1].wagers.A=10;
+  G.holes[1].wagers.Gone=25; G.holes[1].strokes.Gone='6';
+  G.roster={A:{from:0,to:null},B:{from:0,to:null},Gone:{from:0,to:1}};
+  applyRoster();
+  assertEqual(G.holes[0].banker,'Gone','a locked hole keeps the banker who played it');
+  assertEqual(G.holes[0].strokes.Gone,'4','a locked hole keeps the record of what they played');
+  assertEqual(G.holes[1].banker,null,'an open hole drops a banker who is no longer in it');
+  assertEqual(G.holes[1].wagers.Gone,null);
+  assertEqual(G.holes[1].strokes.Gone,'');
+  assertEqual(G.holes[1].press.Gone,{player:false,banker:false});
+  assertEqual(G.holes[1].wagers.A,10,'players still in play are left alone');
+  G.roster={};
+});
+
+// ---- calcResult: wiring the press multiplier and strokes through a payout ----
+
+test('calcResult returns null before a banker is picked',function(){
+  G.players=['A','B']; G.chdcp={A:0,B:0}; G.roster={};
+  assertEqual(calcResult({hole:1,banker:null,wagers:{B:10},press:{B:{player:false,banker:false}},strokes:{A:4,B:5}}),null);
+});
+
+test('calcResult skips a player in the hole who never wagered',function(){
+  G.players=['Bank','P1','NoBet']; G.chdcp={Bank:0,P1:0,NoBet:0}; G.roster={};
+  var hole={hole:1,banker:'Bank',
+    wagers:{Bank:null,P1:10,NoBet:null},
+    press:{Bank:{player:false,banker:false},P1:{player:false,banker:false},NoBet:{player:false,banker:false}},
+    strokes:{Bank:4,P1:5,NoBet:2}};
+  var res=calcResult(hole);
+  assertEqual(res.NoBet,undefined,'no wager means nothing settles, however well they scored');
+  assertEqual(res.Bank,10,'the banker only collects from P1');
+});
+
+test('calcResult pays out the pressed wager and stays zero-sum with mixed presses',function(){
+  G.course='home'; G.awayHoles=null;
+  G.players=['Bank','P1','P2']; G.chdcp={Bank:0,P1:0,P2:0}; G.roster={};
+  // Hole index 0 is a par 4, so every press on it is 2x.
+  var hole={hole:1,banker:'Bank',
+    wagers:{Bank:null,P1:10,P2:20},
+    press:{Bank:{player:false,banker:false},
+           P1:{player:true,banker:false},   // 2x -> $20
+           P2:{player:true,banker:true}},   // 2x * 2x -> $80
+    strokes:{Bank:4,P1:5,P2:3}};
+  var res=calcResult(hole);
+  assertEqual(res.P1,-20,'P1 lost at the pressed stake, not the $10 base');
+  assertEqual(res.P2,80,'P2 beat the banker at the compounded player+banker press');
+  assertEqual(res.Bank,-60);
+  assertEqual(res.Bank+res.P1+res.P2,0,'still zero-sum once presses are in play');
+});
+
+test('calcResult applies BOTH strokes for a player over 18+SI',function(){
+  G.course='home'; G.awayHoles=null;
+  G.players=['Bank','P1']; G.chdcp={Bank:0,P1:27}; G.roster={};
+  // Hole index 0 is SI 9: 27 >= 9 and 27 >= 18+9, so P1 strokes twice.
+  var hole={hole:1,banker:'Bank',
+    wagers:{Bank:null,P1:10},
+    press:{Bank:{player:false,banker:false},P1:{player:false,banker:false}},
+    strokes:{Bank:5,P1:7}};
+  assertEqual(calcResult(hole).P1,0,'7-2 ties the banker; with only one stroke this would have been a loss');
+});
+
+// ---- getStrokes / holeMult / activeHoles edges ----
+
+test('getStrokes treats a player with no handicap entry as scratch',function(){
+  G.course='home'; G.awayHoles=null; G.chdcp={};
+  assertEqual(getStrokes('NeverSetUp',0),0,'a late arrival read before applyHandicaps runs must not throw');
+});
+
+test('holeMult is 2x on par 5s as well as par 4s',function(){
+  G.course='home'; G.awayHoles=null;
+  assertEqual(holeMult(1),2); // hole index 1 = hole 2, par 5
+  assertEqual(holeMult(5),2); // hole index 5 = hole 6, par 5
+});
+
+test('activeHoles ignores G.awayHoles at home and when the array is the wrong length',function(){
+  var away=buildAwayHoles([18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1]);
+  G.course='home'; G.awayHoles=away;
+  assertEqual(activeHoles(),COURSE.holes,'a stale away layout must not leak into a home round');
+  G.course='away'; G.awayHoles=away.slice(0,5);
+  assertEqual(activeHoles(),COURSE.holes,'a half-built away layout falls back rather than reading undefined');
+  G.course='home'; G.awayHoles=null;
+});
+
+test('isValidSISequence rejects a missing sequence outright',function(){
+  assertTrue(!isValidSISequence(null),'null');
+  assertTrue(!isValidSISequence(undefined),'undefined');
+  assertTrue(!isValidSISequence([]),'empty');
+});
+
+test('initHoles starts every hole at the default $5-$50 limits',function(){
+  var holes=initHoles(['A','B']);
+  assertEqual(holes[0].lmin,5);
+  assertEqual(holes[0].lmax,50);
+  assertEqual(holes[17].lmin,5);
+});
+
+// ---- Scores across a part-round ----
+
+test('calcScores counts only the holes each player actually played',function(){
+  G.players=['A','Late','Gone']; G.chdcp={A:0,Late:0,Gone:0};
+  G.roster={A:{from:0,to:null},Late:{from:2,to:null},Gone:{from:0,to:2}};
+  G.holes=initHoles(G.players);
+  for(var i=0;i<4;i++){
+    G.holes[i].locked=true;
+    G.holes[i].strokes.A='4';
+    G.holes[i].strokes.Late=i>=2?'5':'';
+    G.holes[i].strokes.Gone=i<2?'6':'';
+  }
+  var sc=calcScores();
+  assertEqual(sc.total.A,16,'A played all four');
+  assertEqual(sc.total.Late,10,'the late arrival only has holes 3 and 4');
+  assertEqual(sc.total.Gone,12,'the player who left keeps holes 1 and 2 on the card');
+  G.roster={};
+});
+
+// ---- Joining or leaving at the edges of the round ----
+
+test('nextUnplayedHole runs off the end once all 18 are locked, and a join then never takes effect',function(){
+  G.players=['A','B'];
+  G.roster=initRoster(G.players);
+  G.holes=initHoles(G.players);
+  for(var i=0;i<HOLES;i++) G.holes[i].locked=true;
+  assertEqual(nextUnplayedHole(),HOLES);
+  addPlayerToGame('Late',nextUnplayedHole());
+  assertTrue(!playerInHole('Late',17),'there is no hole left to join');
+  assertEqual(holePlayers(17),['A','B']);
+  G.roster={};
+});
+
+test('applyRoster also clears an unlocked hole that falls BEFORE a late arrival joined',function(){
+  G.players=['A','B','Late']; G.chdcp={A:0,B:0,Late:0};
+  G.holes=initHoles(G.players);
+  G.roster={A:{from:0,to:null},B:{from:0,to:null},Late:{from:2,to:null}};
+  // Hole 1 is open (say it was unlocked to fix a typo) and still carries
+  // stale entries for someone who had not arrived yet.
+  G.holes[0].banker='Late';
+  G.holes[0].wagers.Late=25;
+  G.holes[0].strokes.Late='5';
+  applyRoster();
+  assertEqual(G.holes[0].banker,null,'a hole they were not there for cannot have them as banker');
+  assertEqual(G.holes[0].wagers.Late,null);
+  assertEqual(G.holes[0].strokes.Late,'');
+  G.roster={};
+});
+
+// ---- The frozen-netting house rule ----
+// See "Netting is frozen for the round" in CLAUDE.md. This pins the decision:
+// a player who leaves stays in the netting, so nobody else's strokes move.
+
+test('netting stays frozen when the low player leaves, so nobody loses a stroke',function(){
+  G.course='home'; G.awayHoles=null; G.roster={};
+  var tee=TEES.white;
+  var players=['Garrett','Dan','Ann','Sam'],indexes=[12,3.1,21,8];
+  applyHandicaps(players,indexes,tee);
+  assertEqual(G.chdcp,{Garrett:11,Dan:0,Ann:21,Sam:6},'Dan is the scratch baseline');
+
+  G.players=players;
+  G.roster=initRoster(players);
+  assertEqual(netBaseAt(0),3,'the round tees off netted against Dan');
+
+  // Dan leaves after nine. His roster `from` is untouched, so he keeps
+  // counting towards the reference and nobody loses a dot.
+  setPlayerHidden('Dan',true,9);
+  applyHandicaps(G.players,indexes,tee);
+  assertEqual(G.chdcp,{Garrett:11,Dan:0,Ann:21,Sam:6},'marking Dan out must not move anyone');
+  assertEqual(netBaseAt(17),3,'the reference on the last hole is still Dan');
+  assertEqual(chdcpAt('Garrett',17),11,'Garrett plays the 18th off the same 11 as the 1st');
+
+  // What re-netting to the new low player would have done instead.
+  var reNetted=netHandicaps([12,21,8],tee);
+  assertEqual(reNetted,[5,15,0],'dropping Dan would re-net the rest down to Sam');
+
+  // The concrete cost, on hole 13 (SI 8).
+  assertEqual(getStrokes('Garrett',12),1,'Garrett keeps the stroke he has played under all day');
+  var reNetted=netHandicaps([12,21,8],tee);
+  assertEqual(reNetted,[5,15,0],'dropping Dan out of the netting would re-net the rest down to Sam');
+  assertTrue(reNetted[0]<activeHoles()[12].si,
+    'and off 5 Garrett would no longer reach SI '+activeHoles()[12].si+' — the stroke would be gone');
+  G.roster={};
+});
+
+// The other half of the rule: a player arriving off a LOWER handicap than
+// anyone playing re-dots the holes still to play, as if the whole group had
+// teed off together — without touching a hole that is already settled.
+test('a lower player joining re-dots the remaining holes and leaves settled holes alone',function(){
+  G.course='home'; G.awayHoles=null;
+  var tee=TEES.white;
+  G.players=['Garrett','Dan','Ann','Sam'];
+  G.roster=initRoster(G.players);
+  applyHandicaps(G.players,[12,3.1,21,8],tee);
+  assertEqual(G.chdcp,{Garrett:11,Dan:0,Ann:21,Sam:6},'Dan is scratch');
+
+  // Settle hole 1, then lock the whole front nine so the turn is the boundary.
+  G.holes=initHoles(G.players);
+  var h=G.holes[0];
+  h.banker='Dan'; h.wagers.Garrett=10;
+  h.strokes.Dan='4'; h.strokes.Garrett='5';
+  for(var i=0;i<9;i++) G.holes[i].locked=true;
+  var settled=calcTotals();
+  assertEqual(settled.Garrett,0,'Garrett strokes on SI 9 and halves the hole');
+
+  // The club pro joins at the turn off a 0 index: raw course handicap -1.
+  addPlayerToGame('Pro',nextUnplayedHole());
+  assertEqual(G.roster.Pro.from,9,'in from the 10th');
+  applyHandicaps(G.players,[12,3.1,21,8,0],tee);
+
+  // Back nine: dotted exactly as a 12/3.1/21/8/0 group off the 1st tee would be.
+  assertEqual(netHandicaps([12,3.1,21,8,0],tee),[15,4,25,10,0],'what a full-group start gives');
+  assertEqual(chdcpAt('Garrett',9),15,'and what Garrett actually plays the 10th off');
+  assertEqual(chdcpAt('Pro',9),0,'the arrival is the new scratch, not some negative figure');
+  assertEqual(chdcpAt('Dan',17),4);
+  assertEqual(G.chdcp.Garrett,15,'the leaderboard CH follows the rest of the round');
+
+  // Front nine: untouched, because Pro was not in the group for those holes.
+  assertEqual(netBaseAt(8),3,'the 9th is still netted against Dan');
+  assertEqual(chdcpAt('Garrett',0),11,'Garrett played the 1st off 11 and still does');
+  assertTrue(totalsUnchanged(settled,calcTotals()),'every settled hole is still settled at the same money');
+  G.roster={};
+});
+
+test('the netting reference only ever moves down, hole by hole',function(){
+  G.course='home'; G.awayHoles=null;
+  var tee=TEES.white;
+  G.players=['A','B'];
+  G.roster=initRoster(G.players);
+  applyHandicaps(G.players,[12,3.1],tee);          // raws 14, 3
+  addPlayerToGame('Mid',4);
+  addPlayerToGame('Low',12);
+  applyHandicaps(G.players,[12,3.1,8,0],tee);      // raws 14, 3, 9, -1
+  var seen=[];
+  for(var hi=0;hi<HOLES;hi++) seen.push(netBaseAt(hi));
+  assertEqual(seen.slice(0,4),[3,3,3,3],'nobody new yet');
+  assertEqual(seen.slice(4,12),[3,3,3,3,3,3,3,3],'Mid is a 9, above the reference, so it holds');
+  assertEqual(seen.slice(12),[-1,-1,-1,-1,-1,-1],'Low drops it from their first hole on');
+  for(var i=1;i<seen.length;i++) assertTrue(seen[i]<=seen[i-1],'the reference never rises at hole '+(i+1));
+  G.roster={};
+});
+
+// ---- The settled-money guard saveSetupEdit() runs on every save ----
+
+test('totalsUnchanged ignores players who joined but catches one whose money moved',function(){
+  assertTrue(totalsUnchanged({A:10,B:-10},{A:10,B:-10,New:0}),'an arrival starting at zero is fine');
+  assertTrue(totalsUnchanged({A:10,B:-10},{A:10,B:-10}),'identical');
+  assertTrue(!totalsUnchanged({A:10,B:-10},{A:20,B:-20}),'a settled total moved');
+  assertTrue(!totalsUnchanged({A:10},{}),'a player dropping out of the totals entirely is a change');
+});
+
+test('changedHandicaps compares RAW handicaps, so a join reads as no edit at all',function(){
+  // Raw course handicaps, not netted ones: a join shifts everyone's netting
+  // for the holes still to play, but moves nobody's raw.
+  assertEqual(changedHandicaps({A:14,B:3},{A:14,B:3,New:-1}),[],'adding a player edits nobody');
+  assertEqual(changedHandicaps({A:14,B:3},{A:17,B:3}),['A'],'A had their Index edited');
+  assertEqual(changedHandicaps({A:14,B:3},{A:17,B:5}),['A','B'],'a tee change moves the pair');
+});
+
+test('snapshotGame/restoreGame round-trip the whole game, so a bad save can be rolled back',function(){
+  G.course='home'; G.awayHoles=null;
+  G.players=['A','B']; G.roster=initRoster(G.players); G.active=4;
+  applyHandicaps(G.players,[12,3.1],TEES.white);
+  G.holes=initHoles(G.players);
+  // Hole 17 is SI 12: off 11 A does not stroke, off 15 they would.
+  var h=G.holes[16];
+  h.locked=true; h.banker='B'; h.wagers.A=10; h.strokes.B='3'; h.strokes.A='4';
+  var snap=snapshotGame(),settled=calcTotals();
+  assertEqual(settled.A,-10);
+
+  // A save that goes wrong: an arrival wrongly put in play from hole 1, so the
+  // settled hole gets re-dotted underneath them.
+  addPlayerToGame('Pro',0);
+  applyHandicaps(G.players,[12,3.1,0],TEES.white);
+  assertEqual(calcTotals().A,0,'the settled hole has just turned into a push');
+  assertTrue(!totalsUnchanged(settled,calcTotals()),'which the guard sees');
+
+  restoreGame(snap);
+  assertEqual(G.players,['A','B'],'the arrival is gone');
+  assertEqual(G.roster.Pro,undefined);
+  assertEqual(G.raw,{A:14,B:3},'raw course handicaps are back');
+  assertEqual(G.chdcp,{A:11,B:0});
+  assertEqual(G.active,4);
+  assertEqual(G.holes[16].strokes.A,'4','the locked hole came back intact');
+  assertTrue(totalsUnchanged(settled,calcTotals()),'and so did the money');
+  G.roster={};
+});
+
 // ---- fmt ----
 test('fmt formats signed dollar amounts, zero as E',function(){
   assertEqual(fmt(0),'E');
@@ -383,6 +806,329 @@ document.title=(fail?'✗ FAIL':'✓ PASS')+' — Banker Logic Tests';
       addResult('clicking Banker Press All presses every wagered non-banker player at once',
         wageredPlayers.length>0&&wageredPlayers.every(function(p){return hole.press[p].banker===true;}),
         JSON.stringify(wageredPlayers.map(function(p){return hole.press[p].banker;})));
+
+      // ---- Mid-round setup editing ----
+      // Fresh 4-player Rolling Green round, so there is room under the
+      // six-player ceiling to add someone later on.
+      fw.showScreen('setup');
+      fd.querySelector('[data-course="home"]').click();
+      fd.getElementById('pcminus').click();
+      fd.getElementById('pcminus').click();
+      var fn=fd.querySelectorAll('#ninputs .ni'),fh=fd.querySelectorAll('#ninputs .hi');
+      var names4=['Garrett','Dan','Ann','Sam'];
+      addResult('the mid-round fixture starts from a 4-player setup card',
+        fn.length===4,'rows='+fn.length);
+      for(var i=0;i<fn.length;i++){
+        fn[i].value=names4[i]; fn[i].dispatchEvent(new fw.Event('input'));
+        fh[i].value='10';     fh[i].dispatchEvent(new fw.Event('input'));
+      }
+      fd.getElementById('teeup').click();
+
+      // Play hole 1: Garrett banks, everyone wagers $10, banker presses all,
+      // then lock it — that record has to survive every edit below.
+      var starters=fw.G.players.slice();
+      hole=fw.G.holes[0];
+      hole.banker=starters[0];
+      for(var i=1;i<starters.length;i++) hole.wagers[starters[i]]=10;
+      fw.renderGame();
+      fd.querySelector('[data-action="bpressall"]').click();
+      var sc0=['4','5','6','5'];
+      for(var i=0;i<starters.length;i++) hole.strokes[starters[i]]=sc0[i];
+      hole.locked=true;
+      fw.G.active=1; fw.renderGame();
+
+      addResult('nextUnplayedHole() points at hole 2 once hole 1 is locked',
+        fw.nextUnplayedHole()===1,'nextUnplayedHole()='+fw.nextUnplayedHole());
+
+      var teeup=fd.getElementById('teeup');
+
+      fd.getElementById('editbtn').click();
+      addResult('the Setup button on the game screen reopens the setup screen mid-round',
+        fd.getElementById('setup').classList.contains('active')&&fw.editMode===true,
+        'setup active='+fd.getElementById('setup').classList.contains('active')+', editMode='+fw.editMode);
+
+      var erows=fd.querySelectorAll('#ninputs .prow');
+      var ernames=[].map.call(erows,function(r){return r.querySelector('.ni').value;}).join(',');
+      addResult('setup reopens with one row per player, prefilled from the live game',
+        ernames===starters.join(','),'rows='+ernames+' / players='+starters.join(','));
+
+      addResult('the player-count stepper is swapped for Add Player mid-round',
+        fd.getElementById('pcsection').style.display==='none'&&fd.getElementById('addplayer').style.display==='block',
+        'pcsection='+fd.getElementById('pcsection').style.display+', addplayer='+fd.getElementById('addplayer').style.display);
+
+      // --- Home/Away is the one thing that cannot change once play started ---
+      addResult('the Home/Away toggle is visibly locked mid-round',
+        fd.getElementById('coursepills').classList.contains('lk'),
+        'coursepills class='+fd.getElementById('coursepills').className);
+      fd.querySelector('[data-course="away"]').click();
+      addResult('clicking Away mid-round does not switch the course',
+        fw.G.course==='home','G.course='+fw.G.course);
+
+      // --- a player who joins late ---
+      fd.getElementById('addplayer').click();
+      var arows=fd.querySelectorAll('#ninputs .prow');
+      var newRow=arows[arows.length-1];
+      addResult('a row added in this edit gets a remove button, not a checkbox',
+        !newRow.querySelector('.inchk')&&!!newRow.querySelector('.rowbtn'),
+        'has checkbox='+!!newRow.querySelector('.inchk')+', has remove button='+!!newRow.querySelector('.rowbtn'));
+      addResult('Add Player appends a row that is not yet bound to a player',
+        !!newRow&&newRow.dataset.player==='',
+        'rows='+fd.querySelectorAll('#ninputs .prow').length);
+      addResult('a half-filled new row blocks the return to the round',
+        teeup.disabled===true,'teeup.disabled='+teeup.disabled);
+      newRow.querySelector('.ni').value='Late';
+      newRow.querySelector('.ni').dispatchEvent(new fw.Event('input'));
+      newRow.querySelector('.hi').value='10';
+      newRow.querySelector('.hi').dispatchEvent(new fw.Event('input'));
+      addResult('Save unlocks once the new player has a name and an Index',
+        teeup.disabled===false,'teeup.disabled='+teeup.disabled);
+      teeup.click();
+
+      addResult('saving returns to the game screen and leaves edit mode',
+        fd.getElementById('game').classList.contains('active')&&fw.editMode===false,
+        'game active='+fd.getElementById('game').classList.contains('active')+', editMode='+fw.editMode);
+      addResult('the late arrival is in play from hole 2 on, but not hole 1',
+        fw.G.players.indexOf('Late')===4&&fw.playerInHole('Late',1)===true&&fw.playerInHole('Late',0)===false,
+        'players='+fw.G.players.join(',')+', inHole1='+fw.playerInHole('Late',0)+', inHole2='+fw.playerInHole('Late',1));
+      addResult('adding them left hole 1 exactly as it was recorded',
+        fw.G.holes[0].strokes[starters[0]]==='4'&&fw.G.holes[0].strokes.Late==='',
+        starters[0]+'='+fw.G.holes[0].strokes[starters[0]]+', Late='+JSON.stringify(fw.G.holes[0].strokes.Late));
+
+      fw.G.active=1; fw.renderGame();
+      addResult('the hole 2 card offers the late arrival as a banker',
+        fd.querySelectorAll('[data-action="banker"][data-p="Late"]').length===1,
+        'banker pills for Late='+fd.querySelectorAll('[data-action="banker"][data-p="Late"]').length);
+      fw.G.active=0; fw.renderGame();
+      addResult('the locked hole 1 card does not ask the late arrival for a score',
+        fd.querySelectorAll('.sinp[data-p="Late"]').length===0,
+        'score inputs for Late on hole 1='+fd.querySelectorAll('.sinp[data-p="Late"]').length);
+      fw.G.active=1; fw.renderGame();
+
+      // --- a player who has to leave early ---
+      var leaver=starters[3];
+      fd.getElementById('editbtn').click();
+      var lrow=null,hrows=fd.querySelectorAll('#ninputs .prow');
+      for(var i=0;i<hrows.length;i++) if(hrows[i].dataset.player===leaver) lrow=hrows[i];
+      addResult('each player already in the game gets an In-play checkbox, ticked while they are in',
+        !!lrow.querySelector('.inchk input')&&lrow.querySelector('.inchk input').checked===true,
+        'checkbox present='+!!lrow.querySelector('.inchk input'));
+      addResult('the roster spells out how to take someone out',
+        /Uncheck to remove a player/.test(fd.getElementById('inhint').textContent)
+        &&fd.getElementById('inhint').style.display==='block',
+        'hint="'+fd.getElementById('inhint').textContent+'"');
+      lrow.querySelector('.inchk input').click();
+      addResult('unchecking a player flags their row instead of removing it',
+        lrow.dataset.hidden==='1'&&lrow.classList.contains('hid')
+        &&lrow.querySelector('.inchk input').checked===false
+        &&fd.querySelectorAll('#ninputs .prow').length===5,
+        'hidden='+lrow.dataset.hidden+', checked='+lrow.querySelector('.inchk input').checked+
+        ', rows='+fd.querySelectorAll('#ninputs .prow').length);
+      teeup.click();
+      addResult('a player who left keeps hole 1 and is out from hole 2 on',
+        fw.isHiddenPlayer(leaver)===true&&fw.holePlayers(0).indexOf(leaver)!==-1&&fw.holePlayers(1).indexOf(leaver)===-1,
+        'hidden='+fw.isHiddenPlayer(leaver)+', hole1='+fw.holePlayers(0).join(',')+', hole2='+fw.holePlayers(1).join(','));
+      addResult('their hole 1 score and wager survive being marked out',
+        fw.G.holes[0].strokes[leaver]==='5'&&fw.G.holes[0].wagers[leaver]===10,
+        'strokes='+fw.G.holes[0].strokes[leaver]+', wager='+fw.G.holes[0].wagers[leaver]);
+      addResult('their hole 1 winnings still count towards the totals',
+        fw.calcTotals()[leaver]===-20,
+        'calcTotals()['+leaver+']='+fw.calcTotals()[leaver]+' (10 base, banker pressed 2x on a par 4)');
+      fw.renderGame();
+      addResult('the hole 2 card stops asking the player who left for anything',
+        fd.querySelectorAll('[data-action="banker"][data-p="'+leaver+'"]').length===0,
+        'banker pills for '+leaver+'='+fd.querySelectorAll('[data-action="banker"][data-p="'+leaver+'"]').length);
+
+      // --- the input still has to validate before going back to the round ---
+      fd.getElementById('editbtn').click();
+      var vrows=fd.querySelectorAll('#ninputs .prow');
+      for(var i=1;i<vrows.length;i++) if(vrows[i].dataset.hidden!=='1') vrows[i].querySelector('.inchk input').click();
+      addResult('marking everyone but one player out blocks the return to the round',
+        teeup.disabled===true&&fd.getElementById('editmsg').textContent.length>0,
+        'teeup.disabled='+teeup.disabled+', msg="'+fd.getElementById('editmsg').textContent+'"');
+      vrows[1].querySelector('.inchk input').click();
+      addResult('putting a second player back in play re-enables the return',
+        teeup.disabled===false,'teeup.disabled='+teeup.disabled);
+      var nm0=vrows[0].querySelector('.ni'),keep0=nm0.value;
+      nm0.value=''; nm0.dispatchEvent(new fw.Event('input'));
+      addResult('a blank player name still blocks the return to the round',
+        teeup.disabled===true,'teeup.disabled='+teeup.disabled);
+      nm0.value=keep0; nm0.dispatchEvent(new fw.Event('input'));
+
+      // --- Cancel throws the whole edit away ---
+      var teeBefore=fw.G.tee;
+      fd.querySelector('#teepills [data-tee="blue"]').click();
+      fd.getElementById('cancelsetup').click();
+      addResult('Cancel returns to the round with none of the edits committed',
+        fd.getElementById('game').classList.contains('active')&&fw.editMode===false
+        &&fw.G.tee===teeBefore&&fw.isHiddenPlayer(starters[2])===false,
+        'tee='+fw.G.tee+' (was '+teeBefore+'), '+starters[2]+' hidden='+fw.isHiddenPlayer(starters[2]));
+
+      // --- renaming a player mid-round ---
+      fd.getElementById('editbtn').click();
+      var rrow=fd.querySelectorAll('#ninputs .prow')[0];
+      var oldName=rrow.querySelector('.ni').value;
+      rrow.querySelector('.ni').value='Renamed';
+      rrow.querySelector('.ni').dispatchEvent(new fw.Event('input'));
+      teeup.click();
+      addResult('renaming a player mid-round carries their handicap, scores and banker slot with them',
+        fw.G.players[0]==='Renamed'&&fw.G.chdcp.Renamed!==undefined
+        &&fw.G.holes[0].banker==='Renamed'&&fw.G.holes[0].strokes.Renamed==='4'
+        &&fw.G.chdcp[oldName]===undefined,
+        'players='+fw.G.players.join(',')+', hole 1 banker='+fw.G.holes[0].banker+
+        ', hole 1 score='+fw.G.holes[0].strokes.Renamed+', old key left behind='+(fw.G.chdcp[oldName]!==undefined));
+
+      // ---- Mid-round editing: netting, bankers and save ordering ----
+      // A second fresh round, this time with spread-out indexes so the
+      // netting assertions below actually mean something.
+      fd.getElementById('newbtn').click();
+      while(fd.querySelectorAll('#ninputs .prow').length>4) fd.getElementById('pcminus').click();
+      var gn=fd.querySelectorAll('#ninputs .ni'),gh=fd.querySelectorAll('#ninputs .hi');
+      var who=['Garrett','Dan','Ann','Sam'],idxs=['12','3.1','21','8'];
+      for(var i=0;i<4;i++){
+        gn[i].value=who[i]; gn[i].dispatchEvent(new fw.Event('input'));
+        gh[i].value=idxs[i]; gh[i].dispatchEvent(new fw.Event('input'));
+      }
+      teeup.click();
+      var startHdcp=JSON.stringify({Garrett:11,Dan:0,Ann:21,Sam:6});
+      addResult('the netting fixture tees off with Dan at scratch',
+        JSON.stringify(fw.G.chdcp)===startHdcp,'chdcp='+JSON.stringify(fw.G.chdcp));
+
+      var h1=fw.G.holes[0];
+      h1.banker='Garrett';
+      for(var i=1;i<4;i++) h1.wagers[who[i]]=25;
+      for(var i=0;i<4;i++) h1.strokes[who[i]]=String(4+i);
+      h1.locked=true;
+      fw.G.active=1; fw.renderGame();
+
+      function rowFor(name){
+        var rs=fd.querySelectorAll('#ninputs .prow');
+        for(var i=0;i<rs.length;i++) if(rs[i].dataset.player===name) return rs[i];
+        return null;
+      }
+      function lastRow(){
+        var rs=fd.querySelectorAll('#ninputs .prow');
+        return rs[rs.length-1];
+      }
+      function fillRow(r,name,index){
+        r.querySelector('.ni').value=name; r.querySelector('.ni').dispatchEvent(new fw.Event('input'));
+        r.querySelector('.hi').value=index; r.querySelector('.hi').dispatchEvent(new fw.Event('input'));
+      }
+
+      // --- the frozen-netting house rule, end to end through Save ---
+      fd.getElementById('editbtn').click();
+      rowFor('Dan').querySelector('.inchk input').click();
+      teeup.click();
+      addResult('marking the scratch player out leaves every course handicap exactly where it was',
+        JSON.stringify(fw.G.chdcp)===startHdcp,
+        'chdcp='+JSON.stringify(fw.G.chdcp)+' — re-netting to the new low player would have given 5/15/0');
+      addResult('so Garrett keeps his stroke on hole 13 (SI 8) after the low player leaves',
+        fw.getStrokes('Garrett',12)===1,'getStrokes(Garrett, hole 13)='+fw.getStrokes('Garrett',12));
+
+      // --- the banker of the hole in progress leaves ---
+      var h2=fw.G.holes[1];
+      h2.banker='Ann'; h2.wagers.Garrett=25; h2.wagers.Sam=25;
+      fw.renderGame();
+      fd.getElementById('editbtn').click();
+      rowFor('Ann').querySelector('.inchk input').click();
+      teeup.click();
+      addResult('marking out the banker of the hole in progress resets that hole to Select Banker',
+        fw.G.holes[1].banker===null&&/Select Banker/.test(fd.getElementById('hcard').textContent),
+        'banker='+fw.G.holes[1].banker);
+      addResult('the players still in that open hole keep the wagers they had already set',
+        fw.G.holes[1].wagers.Garrett===25&&fw.G.holes[1].wagers.Sam===25,
+        'Garrett='+fw.G.holes[1].wagers.Garrett+', Sam='+fw.G.holes[1].wagers.Sam);
+
+      // --- someone joins while the hole is already fully entered ---
+      h2.banker='Garrett'; h2.wagers.Sam=25;
+      h2.strokes.Garrett='4'; h2.strokes.Sam='5';
+      fw.renderGame();
+      var lockBtn=fd.querySelector('.lbtn');
+      addResult('that hole is ready to lock before anyone joins',
+        !!lockBtn&&lockBtn.disabled===false,'lbtn disabled='+(lockBtn&&lockBtn.disabled));
+      fd.getElementById('editbtn').click();
+      fd.getElementById('addplayer').click();
+      fillRow(lastRow(),'Mark','15');
+      teeup.click();
+      var lockBtn2=fd.querySelector('.lbtn');
+      addResult('a player joining mid-hole reopens the lock until they have wagered and scored',
+        !!lockBtn2&&lockBtn2.disabled===true&&/Wager/.test(lockBtn2.textContent),
+        'lbtn disabled='+(lockBtn2&&lockBtn2.disabled)+', label="'+(lockBtn2&&lockBtn2.textContent)+'"');
+
+      // --- Cancel after adding a player commits nothing ---
+      var beforeCancel=fw.G.players.join(',');
+      fd.getElementById('editbtn').click();
+      fd.getElementById('addplayer').click();
+      fillRow(lastRow(),'Ghost','10');
+      fd.getElementById('cancelsetup').click();
+      addResult('Cancel after adding a player leaves the game without them',
+        fw.G.players.join(',')===beforeCancel&&fw.G.roster.Ghost===undefined,
+        'players='+fw.G.players.join(','));
+
+      // --- one save that renames, adds and marks out all at once ---
+      h2.wagers.Mark=25; h2.strokes.Mark='6';
+      h2.locked=true;
+      fw.G.active=2; fw.renderGame();
+      addResult('with holes 1 and 2 locked the join/leave boundary moves to hole 3',
+        fw.nextUnplayedHole()===2,'nextUnplayedHole()='+fw.nextUnplayedHole());
+      var danLeftAt=fw.G.roster.Dan.to;
+
+      fd.getElementById('editbtn').click();
+      var grow=rowFor('Garrett');
+      grow.querySelector('.ni').value='Gman';
+      grow.querySelector('.ni').dispatchEvent(new fw.Event('input'));
+      rowFor('Sam').querySelector('.inchk input').click();
+      fd.getElementById('addplayer').click();
+      fillRow(lastRow(),'Pat','20');
+      teeup.click();
+
+      addResult('a rename, an add and a departure all land in one save',
+        fw.G.players.indexOf('Gman')===0&&fw.G.players.indexOf('Garrett')===-1
+        &&fw.G.players.indexOf('Pat')!==-1&&fw.isHiddenPlayer('Sam')===true,
+        'players='+fw.G.players.join(','));
+      addResult('the rename carried that player through the holes already locked',
+        fw.G.holes[0].banker==='Gman'&&fw.G.holes[0].strokes.Gman==='4'
+        &&fw.G.chdcp.Garrett===undefined,
+        'hole 1 banker='+fw.G.holes[0].banker+', hole 1 score='+fw.G.holes[0].strokes.Gman);
+      addResult('re-saving does not push an already-departed player out at a later hole',
+        fw.G.roster.Dan.to===danLeftAt,
+        'Dan left at hole index '+fw.G.roster.Dan.to+' (was '+danLeftAt+
+        '); the boundary has since moved to '+fw.nextUnplayedHole());
+      addResult('each arrival joins at the boundary that was current when they were added',
+        fw.G.roster.Pat.from===2&&fw.G.roster.Mark.from===1,
+        'Pat.from='+fw.G.roster.Pat.from+', Mark.from='+fw.G.roster.Mark.from);
+      addResult('an arrival above the current scratch moves nobody off their handicap',
+        fw.G.chdcp.Gman===11&&fw.G.chdcp.Ann===21&&fw.G.chdcp.Sam===6&&fw.G.chdcp.Pat===20,
+        'chdcp='+JSON.stringify(fw.G.chdcp));
+
+      // --- an arrival below the round's scratch must not move settled money ---
+      var settledBefore=fw.calcTotals();
+      fd.getElementById('editbtn').click();
+      addResult('the edit card shows the money already settled, before anything is changed',
+        /Settled through hole 2/.test(fd.getElementById('editsettled').textContent),
+        'panel="'+fd.getElementById('editsettled').textContent.slice(0,70)+'"');
+
+      fd.getElementById('addplayer').click();
+      fillRow(lastRow(),'Pro','0');
+      var proNet=lastRow().querySelector('.netres').textContent;
+      addResult('the arrival previews as the new scratch for the holes still to play',
+        proNet==='0','NET shown for a 0 index = "'+proNet+'"');
+      addResult('and the group previews re-dotted around them',
+        rowFor('Gman').querySelector('.netres').textContent==='+15',
+        'Gman NET='+rowFor('Gman').querySelector('.netres').textContent+
+        ' — what a 12 would play off in a group containing a 0');
+
+      teeup.click();
+      addResult('saving an arrival below scratch leaves every settled total exactly as it was',
+        fw.totalsUnchanged(settledBefore,fw.calcTotals()),
+        'before='+JSON.stringify(settledBefore)+', after='+JSON.stringify(fw.calcTotals()));
+      addResult('the holes already locked keep the dots they were played under',
+        fw.chdcpAt('Gman',0)===11&&fw.chdcpAt('Gman',1)===11&&fw.netBaseAt(1)===3,
+        'Gman on hole 1='+fw.chdcpAt('Gman',0)+', hole 2='+fw.chdcpAt('Gman',1)+
+        ', reference on hole 2='+fw.netBaseAt(1));
+      addResult('and the holes still to play are dotted as if the whole group had teed off together',
+        fw.chdcpAt('Gman',2)===15&&fw.chdcpAt('Pro',2)===0&&fw.G.chdcp.Gman===15,
+        'from hole 3: Gman='+fw.chdcpAt('Gman',2)+', Pro='+fw.chdcpAt('Pro',2)+
+        '; a 12/3.1/21/8/15/20/0 group off the 1st tee gives a 12 exactly 15');
     }catch(e){
       addResult('layout tests threw an error',false,e.message);
     }

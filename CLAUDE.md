@@ -67,6 +67,29 @@ server strictly required). It loads `banker-logic.js` and runs assertions coveri
 - Stroke-index allocation (`getStrokes`)
 - Hole results and zero-sum property (`calcResult`)
 - Running totals across locked holes (`calcTotals`)
+- The roster: `initRoster`/`playerInHole`/`holePlayers`, `nextUnplayedHole`'s
+  boundary rule, `addPlayerToGame`, `setPlayerHidden`, `renamePlayers` (including
+  a name swap), and `applyRoster` leaving locked holes alone
+- Per-hole netting: a departure keeping everyone's dots, a lower player
+  joining re-dotting only the holes still to play, and `netBaseAt()` never
+  rising across all 18 (see "Netting is per hole" below)
+- The settled-money guard: `totalsUnchanged`, `changedHandicaps`, and a
+  `snapshotGame`/`restoreGame` round-trip that rolls back a save which would
+  have turned a settled $10 loss into a push
+
+Every function in `banker-logic.js` has at least one case, so aim new work at
+*branches*, not function names — the gaps that were worth closing were things
+like "`calcResult` skips a player who never wagered", "both strokes apply over
+18+SI", "`activeHoles` ignores a stale `G.awayHoles` at home", and pressed
+payouts flowing through `calcResult` (every earlier `calcResult` case had no
+press at all, so `finalWager` was never exercised through a real payout).
+
+The second suite on that page (**Setup Screen Layout Tests**) drives the real
+`index.html` in an iframe. It covers the setup screen's scrolling and away-SI
+validation, and then plays a hole and runs the whole mid-round editing flow
+against it — reopening setup, the locked course toggle, adding a late arrival,
+marking a player out, the validation rules, Cancel, and renaming. Add DOM-level
+coverage there for anything new on the setup or hole card.
 
 Green summary ("N passed, 0 failed") = safe to commit. Failures show an expected/actual
 diff per case.
@@ -103,9 +126,152 @@ pattern of testing the real wiring, not a re-implementation of it.
   `G.awayHoles` when set, else falls back to `COURSE.holes` — always read holes through
   `activeHoles()[hi]`, never `COURSE.holes[hi]` directly, or Away games will silently
   play with Rolling Green's stroke indexes.
+- **Roster: who is in play for which holes.** `G.roster[player] =
+  {from:<first hole index in play>, to:<hole index they left, or null>}`.
+  Everyone who tees off is `{from:0,to:null}`. A player who joins late gets
+  `from` = `nextUnplayedHole()`; a player who leaves early gets `to` set to the
+  same boundary. Nobody is ever removed from `G.players` — a player who left
+  keeps every hole they played, their scores and their winnings, and is simply
+  out of play for the rest. **Read a hole's participants through
+  `holePlayers(hi)`, never `G.players` directly**, or a late arrival will be
+  asked to wager on holes played before they showed up (same class of bug as
+  reading `COURSE.holes` instead of `activeHoles()`). `rosterEntry()` falls
+  back to "in for the whole round" for any player with no entry, so older
+  games and tests that never set a roster behave exactly as before.
+  `nextUnplayedHole()` is deliberately *the hole after the last locked one*,
+  not the first unlocked hole — unlocking hole 3 to fix a typo must not drag
+  the join/leave boundary backwards.
+- **Netting is per hole, and the reference only ever moves down.** The scratch
+  reference for a hole is the lowest *raw* course handicap among everyone who
+  had joined the group **by that hole** — `netBaseAt(hi)`, with a player's
+  strokes for that hole coming from `chdcpAt(p,hi)`. Because that set of
+  players only grows as the round goes on, the reference can only fall. One
+  mechanism, both house rules:
+
+  - **Someone joins off a lower handicap than anyone playing.** From their
+    first hole on, the reference drops to them, so the holes still to play are
+    dotted exactly as they would have been had the whole group teed off
+    together — `chdcpAt(p, hi)` for those holes equals
+    `netHandicaps(all indexes)`. Holes already settled never see them, because
+    their roster `from` is after those holes, so the money on them cannot move.
+  - **Someone leaves.** Their roster `from` is untouched, so they keep counting
+    towards the reference for the rest of the round. Nobody loses a dot they
+    have been playing under all day.
+
+  Worked example — Garrett 12, Dan 3.1, Ann 21, Sam 8 (raws 14/3/24/9, nets
+  11/0/21/6), a scratch player joining at the turn:
+
+  ```
+  holes 1-9    reference 3 (Dan)   Garrett 11 · Dan 0 · Ann 21 · Sam 6
+  holes 10-18  reference -1 (Pro)  Garrett 15 · Dan 4 · Ann 25 · Sam 10 · Pro 0
+  ```
+
+  `netHandicaps([12,3.1,21,8,0])` is `[15,4,25,10,0]` — the back nine matches a
+  full-group start exactly, and the front nine does not move at all.
+
+  **Why not a single frozen reference for the whole round** (an earlier
+  attempt, `G.netBase`): it keeps settled holes still, but a late arrival below
+  it nets out *negative* (a 0 index against a base of 3 plays off −4) instead
+  of becoming the scratch player they actually are, and the group is never
+  re-dotted around them. Per-hole netting gives the same guarantee without that
+  distortion. Don't reintroduce a round-wide base.
+
+  **Why not simply re-net to whoever is currently in play**: that takes strokes
+  *away* when the low player leaves. Nets 11 and 6 re-netted to 5 and 0 means
+  Garrett no longer strokes on an SI 8 hole — an edge he played under all day,
+  gone through no action of his own. Pairwise gaps survive over a full 18 but
+  not hole by hole, and a round settles hole by hole.
+
+  `G.raw` is the durable number every netting is derived from; `G.chdcp` is
+  only the rest-of-round figure, for the leaderboard's CH and the scorecard.
+  **Read strokes through `chdcpAt(p,hi)`, never `G.chdcp`** — same class of
+  rule as `activeHoles()` over `COURSE.holes` and `holePlayers()` over
+  `G.players`. `chdcpAt()` falls back to `G.chdcp` when `G.raw` has no entry,
+  so older games and tests that only set `G.chdcp` behave as before.
+
+  Editing an **Index** moves only that player's raw, and therefore their own
+  settled holes; changing the **tee** moves everyone's. Those are the only two
+  things that reach back into locked holes, and the mid-round note says so.
+
 - **`calcScores()`** computes each player's front/back/total gross strokes (summed from
   locked holes' `strokes` field) and their net score (`total - G.chdcp`). This is
   separate from `calcTotals()`, which sums the $ betting results, not strokes.
+
+## Mid-round setup editing
+
+The game screen's **Setup** button (`openSetupEdit()`) reopens the same
+`#setup` screen with `editMode = true`, to add a player who joined late, mark
+one out who left early, or fix a name/Index/tee/SI typo. What changes in that
+mode:
+
+- The **Home/Away toggle is locked** (`.lk` on `#coursepills`, plus an early
+  return in its click handler). Everything else on the screen is editable.
+- The player-count stepper is swapped for **+ Add Player**; each row bound to a
+  player already in the game (`data-player`) gets an **In play checkbox**
+  (`inPlayToggle()`), with the hint *"Uncheck to remove a player"* under the
+  roster. Those rows can only be unchecked, never removed — their holes have to
+  stay on the card. A row added in this edit has no history, so it gets an `✕`
+  remove button instead.
+
+  This was an IN/OUT **button** first, and it tested fine but read badly: a
+  button labelled "IN" is ambiguous about whether it names the current state or
+  what tapping it will do, and users hesitated. A checkbox is unambiguously
+  state, which is the point — if you restyle this column, keep that property.
+- **Nothing is committed to `G` until Save.** `G.tee` and the away
+  Rating/Slope/SI are mutated or read straight off the DOM, so `openSetupEdit()`
+  snapshots them into `editSnap` and `cancelSetupEdit()` restores them.
+- Validation still runs: the existing blank/duplicate-name and Index rules,
+  plus `chkEditRows()` — at least two players in play, at most six. The ceiling
+  counts players *in play*, not rows, so a round where two left and two joined
+  is a legitimate six-player card.
+- Re-saving does **not** move an already-departed player's exit hole, or an
+  already-added player's join hole — `saveSetupEdit()` only calls
+  `setPlayerHidden()` when the flag actually changes. Without that, every
+  later save would drag their boundary forward and silently pull them back
+  into holes they missed.
+- **Every save is guarded against moving settled money.** `saveSetupEdit()`
+  takes a full `snapshotGame()` first, applies the edit, then checks: if no
+  pre-existing player's handicap changed (`changedHandicaps()` comes back
+  empty, i.e. this was a pure join/departure) but a running total did
+  (`totalsUnchanged()` fails), the whole save is rolled back via
+  `restoreGame()` and the user is told, rather than silently rewriting a hole
+  that was already paid out. An Index or tee edit legitimately moves settled
+  holes, which is why the guard only bites when no handicap moved. The
+  baseline for the comparison is taken **after** the rename step — a rename
+  only moves keys, never money, and taking it after means the keys line up.
+  The comparison is on **raw** course handicaps (`G.raw`), not netted ones: a
+  join legitimately shifts the netting of holes still to play but moves nobody's
+  raw, so the guard stays strict for exactly the case it should. With per-hole
+  netting it should never fire; it is a net, not control flow, and
+  `#editsettled` on the setup card shows the user the same numbers before they
+  change anything.
+- `saveSetupEdit()` order matters: **renames first** (`renamePlayers()` rebuilds
+  every name-keyed map in one pass, so an A→B/B→A swap can't collide), then
+  adds, then hidden flags, then `applyHandicaps()`, then `applyRoster()`.
+  `applyRoster()` clears wager/press/score slots for out-of-play players on
+  **unlocked holes only** — locked holes are never touched.
+
+Editing an Index or the tee re-nets the whole group and therefore changes
+strokes on holes already locked (everything is recomputed from `G.chdcp`).
+That's deliberate, and the mid-round note on the setup card says so.
+
+### Testing the edit flow
+
+The mid-round flow is DOM-level, so its coverage lives in the second suite in
+`tests.html`, driving the real `index.html` in an iframe. Two things to know
+before adding to it:
+
+- **The suite is one long sequential script sharing one iframe**, so state
+  carries from block to block. Each new block starts a fresh round (click
+  `#newbtn`, trim with `#pcminus`, fill the rows, click `#teeup`) rather than
+  inheriting whatever the previous block left behind. The first block leaves a
+  *six*-player away game, which is a real trap: it sits on the six-player
+  ceiling, so `+ Add Player` is disabled and any "add a player" assertion
+  silently fails.
+- A hole is locked directly (`h.locked=true` after setting banker/wagers/
+  strokes) rather than by clicking Lock, which keeps the fixtures short. That
+  is fine for roster and netting assertions, but if you are testing the lock
+  button itself, drive the real button.
 
 ## CSS/layout gotchas
 

@@ -28,7 +28,7 @@
 
     .logo-i{font-size:36px;text-align:center}
     .logo-t{font-family:'Bebas Neue',sans-serif;font-size:52px;color:var(--gold);letter-spacing:6px;line-height:1;text-align:center}
-    .card{background:var(--cream);border-radius:20px;padding:20px 18px;width:100%;max-width:420px;display:flex;flex-direction:column;gap:14px}
+    .card{background:var(--cream);border-radius:20px;padding:20px 18px;width:100%;max-width:420px;display:flex;flex-direction:column;gap:14px;flex-shrink:0}
     .flbl{font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--green);display:block;margin-bottom:8px}
     .cpills{display:flex;gap:8px}
     .cpill{flex:1;padding:9px;border:2px solid var(--border);background:white;border-radius:10px;font-family:'DM Sans',sans-serif;font-weight:600;font-size:16px;cursor:pointer;color:var(--muted)}
@@ -47,6 +47,18 @@
     .hi:focus{outline:none;border-color:var(--green)}
     .teeup{width:100%;padding:14px;background:var(--green);color:white;border:none;border-radius:12px;font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:2px;cursor:pointer}
     .teeup:disabled{opacity:0.4}
+    .cancelsetup{width:100%;padding:11px;background:transparent;border:1.5px solid var(--border);border-radius:12px;font-family:'DM Sans',sans-serif;font-weight:600;font-size:14px;color:var(--muted);cursor:pointer}
+    .editnote{background:rgba(201,168,76,0.16);border:1.5px solid var(--gold);border-radius:12px;padding:10px 12px;font-size:12px;line-height:1.5;color:#6b5420}
+    .editsettled{background:white;border:1.5px solid var(--border);border-radius:12px;padding:10px 12px;font-size:12px;line-height:1.7}
+    .editsettled b{color:var(--green);letter-spacing:0.5px}
+    .coursebtn.lk{opacity:0.5;pointer-events:none}
+    .addp{width:100%;margin-top:8px;padding:10px;background:white;border:2px dashed var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-weight:600;font-size:13px;color:var(--green);cursor:pointer}
+    .addp:disabled{opacity:0.4;color:var(--muted);cursor:default}
+    .inchk{width:46px;flex-shrink:0;align-self:stretch;display:flex;align-items:center;justify-content:center;cursor:pointer}
+    .inchk input{width:22px;height:22px;accent-color:var(--green);cursor:pointer;margin:0}
+    .rowbtn{width:46px;flex-shrink:0;padding:0;border:2px solid var(--border);border-radius:10px;background:white;font-size:15px;line-height:1;cursor:pointer;color:var(--muted);font-family:'DM Sans',sans-serif}
+    .inhint{font-size:11px;color:var(--muted);line-height:1.5;margin-top:2px}
+    .prow.hid .ni,.prow.hid .hi{opacity:0.45;text-decoration:line-through}
     .hres{width:46px;flex-shrink:0;font-size:16px;font-weight:700;color:var(--muted);text-align:center;align-self:center}
     .hres.netres{color:var(--green)}
     .pmbtn{width:40px;height:40px;flex-shrink:0;border-radius:10px;border:2px solid var(--border);background:white;font-size:20px;font-weight:700;color:var(--green);cursor:pointer;font-family:'DM Sans',sans-serif;display:flex;align-items:center;justify-content:center}
@@ -64,6 +76,9 @@
     .topbar{background:var(--dark);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;padding-top:max(14px,env(safe-area-inset-top))}
     .gtitle{font-family:'Bebas Neue',sans-serif;color:var(--gold);font-size:26px;letter-spacing:3px}
     .sumbtn{padding:7px 14px;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-weight:600;font-size:12px;cursor:pointer;background:var(--gold);color:var(--dark)}
+    .topbtns{display:flex;gap:7px}
+    .setupbtn{padding:7px 12px;border-radius:8px;font-family:'DM Sans',sans-serif;font-weight:600;font-size:12px;cursor:pointer;background:transparent;border:1.5px solid rgba(255,255,255,0.3);color:var(--goldk)}
+    .hnote{padding:16px;text-align:center;font-size:13px;color:var(--muted);line-height:1.5}
     .gscroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:40px}
 
     .lb{background:white;margin:12px 12px 6px;border-radius:14px;border:1.5px solid var(--border);overflow:hidden}
@@ -194,6 +209,8 @@
 <div id="setup" class="screen active">
   <div><div class="logo-i">⛳</div><div class="logo-t" style="font-size:38px;letter-spacing:3px">ROLLING GREEN BANKER</div></div>
   <div class="card">
+    <div class="editnote" id="editnote" style="display:none"></div>
+    <div class="editsettled" id="editsettled" style="display:none"></div>
     <div>
       <label class="flbl">Course</label>
       <div class="coursebtn" id="coursepills">
@@ -219,7 +236,7 @@
       <div class="sigrid" id="sigrid"></div>
       <div id="sigridmsg" class="sigridmsg"></div>
     </div>
-    <div style="text-align:center">
+    <div id="pcsection" style="text-align:center">
       <label class="flbl" style="text-align:center">Number of Players</label>
       <div style="display:flex;align-items:center;justify-content:center;gap:10px">
         <button type="button" class="pmbtn" id="pcminus">−</button>
@@ -229,22 +246,30 @@
     </div>
     <div>
       <div class="prow" style="margin-bottom:2px">
-        <span class="flbl" style="flex:1;margin-bottom:0">Player Names</span>
+        <span class="flbl" id="nameshdr" style="flex:1;margin-bottom:0">Player Names</span>
         <span class="flbl" style="width:72px;flex-shrink:0;margin-bottom:0;text-align:center">Index</span>
         <span class="flbl" style="width:46px;flex-shrink:0;margin-bottom:0;text-align:center">Hcp</span>
         <span class="flbl" style="width:46px;flex-shrink:0;margin-bottom:0;text-align:center">Net</span>
+        <span class="flbl" id="rowbtnhdr" style="width:46px;flex-shrink:0;margin-bottom:0;display:none;text-align:center;letter-spacing:0.5px;line-height:1.2">In play</span>
       </div>
       <div id="ninputs"></div>
+      <div id="inhint" class="inhint" style="display:none">Uncheck to remove a player — they keep every hole they have already played.</div>
       <div id="namesmsg" class="sigridmsg"></div>
+      <div id="editmsg" class="sigridmsg"></div>
+      <button type="button" class="addp" id="addplayer" style="display:none">+ Add Player</button>
     </div>
     <button class="teeup" id="teeup" disabled>Tee It Up →</button>
+    <button type="button" class="cancelsetup" id="cancelsetup" style="display:none">Cancel — back to the round</button>
   </div>
 </div>
 
 <div id="game" class="screen">
   <div class="topbar">
     <span class="gtitle">⛳ BANKER</span>
-    <button class="sumbtn" id="sumbtn">Summary</button>
+    <div class="topbtns">
+      <button class="setupbtn" id="editbtn">Setup</button>
+      <button class="sumbtn" id="sumbtn">Summary</button>
+    </div>
   </div>
   <div class="gscroll">
     <div id="lb"></div>
@@ -300,14 +325,20 @@ function updateLiveHandicaps(){
     idx.push(isNaN(v)?null:v);
     if(!isNaN(v)){validIdx.push(v);validPos.push(i);}
   }
+  // Netting over every row on screen, players marked out included — which is
+  // exactly the reference the remaining holes will be dotted against.
   var net=validIdx.length?netHandicaps(validIdx,tee):[];
   for(var i=0;i<rows.length;i++){
     var hcpres=rows[i].querySelector('.hcpres'),netres=rows[i].querySelector('.netres');
     var pos=validPos.indexOf(i);
     if(pos===-1){hcpres.textContent='';netres.textContent='';continue;}
     hcpres.textContent=courseHdcp(idx[i],tee);
-    netres.textContent=net[pos]===0?'0':'+'+net[pos];
+    netres.textContent=fmtNet(net[pos]);
   }
+}
+
+function fmtNet(n){
+  return n===0?'0':(n>0?'+'+n:String(n));
 }
 
 function buildSIInputs(){
@@ -366,6 +397,73 @@ function setCount(n){
   buildInputs();
 }
 
+// Name/Index stay DOM-as-truth (chkValid, updateLiveHandicaps, startGame and
+// saveSetupEdit all read them straight out of #ninputs). Mid-round each row
+// also carries who it belongs to — data-player is the player's name as the
+// game currently knows it, or '' for someone added in this edit — plus their
+// data-hidden state.
+function makeRow(i,name,index,player,hidden){
+  var row=document.createElement('div');
+  row.className='prow'+(hidden?' hid':'');
+  row.dataset.player=player||'';
+  row.dataset.hidden=hidden?'1':'0';
+  var ni=document.createElement('input');
+  ni.type='text'; ni.className='ni'; ni.placeholder='Player '+(i+1);
+  ni.value=name; ni.autocomplete='off';
+  ni.addEventListener('input',chkValid);
+  var hi=document.createElement('input');
+  hi.type='number'; hi.className='hi'; hi.placeholder='Index';
+  hi.min='-10'; hi.max='45'; hi.step='0.1';
+  hi.value=index;
+  hi.addEventListener('input',function(){chkValid();updateLiveHandicaps();});
+  var hcpres=document.createElement('span');
+  hcpres.className='hres hcpres';
+  var netres=document.createElement('span');
+  netres.className='hres netres';
+  row.appendChild(ni); row.appendChild(hi); row.appendChild(hcpres); row.appendChild(netres);
+  if(editMode) row.appendChild(player?inPlayToggle(row):dropRowBtn(row));
+  return row;
+}
+
+// A player already in the game is taken out by unchecking them, never removed
+// — the holes they have played have to stay on the card. A checkbox rather
+// than a button on purpose: a button reading "IN" is ambiguous about whether
+// it is describing the current state or what tapping it will do.
+function inPlayToggle(row){
+  var lab=document.createElement('label');
+  lab.className='inchk';
+  lab.title='Checked = in play. Uncheck to take this player out for the rest of the round.';
+  var cb=document.createElement('input');
+  cb.type='checkbox';
+  cb.checked=row.dataset.hidden!=='1';
+  cb.addEventListener('change',function(){
+    var hid=!cb.checked;
+    row.dataset.hidden=hid?'1':'0';
+    row.classList.toggle('hid',hid);
+    chkValid();
+  });
+  lab.appendChild(cb);
+  return lab;
+}
+
+// Someone added in this edit has no history yet, so their row can just go.
+function dropRowBtn(row){
+  var b=document.createElement('button');
+  b.type='button'; b.className='rowbtn';
+  b.title='Remove this new player';
+  b.textContent='\u2715';
+  b.addEventListener('click',function(){
+    row.parentNode.removeChild(row);
+    renumberRows(); chkValid(); updateLiveHandicaps();
+  });
+  return b;
+}
+
+function renumberRows(){
+  var rows=document.querySelectorAll('#ninputs .prow');
+  for(var i=0;i<rows.length;i++) rows[i].querySelector('.ni').placeholder='Player '+(i+1);
+}
+
 function buildInputs(){
   var c=document.getElementById('ninputs');
   var oldn=c.querySelectorAll('.ni'),oldh=c.querySelectorAll('.hi');
@@ -373,25 +471,22 @@ function buildInputs(){
   for(var i=0;i<oldn.length;i++) en.push(oldn[i].value);
   for(var i=0;i<oldh.length;i++) eh.push(oldh[i].value);
   c.innerHTML='';
-  for(var i=0;i<G.count;i++){
-    var row=document.createElement('div');
-    row.className='prow';
-    var ni=document.createElement('input');
-    ni.type='text'; ni.className='ni'; ni.placeholder='Player '+(i+1);
-    ni.value=en[i]||''; ni.autocomplete='off';
-    ni.addEventListener('input',chkValid);
-    var hi=document.createElement('input');
-    hi.type='number'; hi.className='hi'; hi.placeholder='Index';
-    hi.min='-10'; hi.max='45'; hi.step='0.1';
-    hi.value=eh[i]||'';
-    hi.addEventListener('input',function(){chkValid();updateLiveHandicaps();});
-    var hcpres=document.createElement('span');
-    hcpres.className='hres hcpres';
-    var netres=document.createElement('span');
-    netres.className='hres netres';
-    row.appendChild(ni); row.appendChild(hi); row.appendChild(hcpres); row.appendChild(netres);
-    c.appendChild(row);
+  for(var i=0;i<G.count;i++) c.appendChild(makeRow(i,en[i]||'',eh[i]||'',null,false));
+  chkValid();
+  updateLiveHandicaps();
+}
+
+// Mid-round: one row per player already in the game, name and Index
+// prefilled from G, with their current hidden state.
+function buildEditInputs(){
+  var c=document.getElementById('ninputs');
+  c.innerHTML='';
+  for(var i=0;i<G.players.length;i++){
+    var p=G.players[i],ix=G.hdcp[p];
+    c.appendChild(makeRow(i,p,ix==null?'':String(ix),p,isHiddenPlayer(p)));
   }
+  G.count=G.players.length;
+  document.getElementById('playercount').value=G.count;
   chkValid();
   updateLiveHandicaps();
 }
@@ -408,7 +503,26 @@ function chkValid(){
     if(ar===''||as==='') ok=false;
     if(!isValidSISequence(collectAwaySI())) ok=false;
   }
+  if(editMode&&!chkEditRows()) ok=false;
   document.getElementById('teeup').disabled=!ok;
+}
+
+// The two rules that only exist mid-round: at least two players must still be
+// in play (marking everyone out leaves no bet to make on the holes that are
+// left), and the setup stepper's 6-player ceiling still applies to late
+// arrivals. The ceiling counts players IN PLAY, not rows — a round where two
+// players left and two others joined is a legitimate six-player card.
+function chkEditRows(){
+  var rows=document.querySelectorAll('#ninputs .prow');
+  var playing=0;
+  for(var i=0;i<rows.length;i++) if(rows[i].dataset.hidden!=='1') playing++;
+  var msg=document.getElementById('editmsg'),txt='';
+  if(playing<2) txt='At least two players must still be in play.';
+  else if(playing>6) txt='Six players in play maximum.';
+  msg.textContent=txt;
+  msg.className=txt?'sigridmsg bad':'sigridmsg';
+  document.getElementById('addplayer').disabled=playing>=6;
+  return !txt;
 }
 
 // Live duplicate-name check (case/whitespace-insensitive, blanks ignored).
@@ -445,7 +559,147 @@ function startGame(){
   }
   G.awayHoles=G.course==='away'?buildAwayHoles(collectAwaySI()):null;
   applyHandicaps(G.players,idx,tee);
+  G.roster=initRoster(G.players);
   G.holes=initHoles(G.players); G.active=0;
+  showScreen('game'); renderGame();
+}
+
+// ---------------------------------------------------------------------------
+// Mid-round setup editing
+//
+// The same setup screen, reopened from the game's "Setup" button. Everything
+// is editable except the Home/Away course toggle, and nothing is committed to
+// G until Save — Cancel restores the tee/rating/slope/SI the round started
+// with (those inputs mutate G.tee or are read straight off the DOM, so they
+// have to be snapshotted to make Cancel truly non-destructive).
+// ---------------------------------------------------------------------------
+
+var editMode=false,editSnap=null;
+
+function openSetupEdit(){
+  editMode=true;
+  editSnap={tee:G.tee,
+            rating:document.getElementById('awayrating').value,
+            slope:document.getElementById('awayslope').value,
+            si:collectAwaySI()};
+  renderEditChrome();
+  buildEditInputs();
+  renderCourseUI();
+  renderSIStatus();
+  chkValid();
+  showScreen('setup');
+}
+
+function exitEditMode(){
+  editMode=false; editSnap=null;
+  renderEditChrome();
+  renderCourseUI();
+}
+
+function renderEditChrome(){
+  var on=editMode,at=on?nextUnplayedHole():0;
+  document.getElementById('pcsection').style.display=on?'none':'block';
+  document.getElementById('addplayer').style.display=on?'block':'none';
+  document.getElementById('cancelsetup').style.display=on?'block':'none';
+  document.getElementById('rowbtnhdr').style.display=on?'block':'none';
+  document.getElementById('inhint').style.display=on?'block':'none';
+  document.getElementById('coursepills').classList.toggle('lk',on);
+  document.getElementById('teeup').textContent=on?'Save & Return →':'Tee It Up →';
+  document.getElementById('nameshdr').textContent=on?'Players':'Player Names';
+  var note=document.getElementById('editnote'),settled=document.getElementById('editsettled');
+  note.style.display=on?'block':'none';
+  settled.style.display=on?'block':'none';
+  if(!on){ note.textContent=''; settled.innerHTML=''; document.getElementById('editmsg').textContent=''; return; }
+  renderSettled(settled,at);
+  note.innerHTML='<b>Round in progress.</b> Course stays '+(G.course==='away'?'Away':'Rolling Green')+
+    '. '+(at>=HOLES
+      ? 'All 18 holes are locked, so added or hidden players change nothing from here.'
+      : 'Players added or marked out take effect from hole '+(at+1)+' on — '+
+        (at===1?'hole 1 keeps':'holes 1–'+at+' keep')+' exactly what was recorded.')+
+    ' A player joining off a lower handicap than anyone playing re-dots the holes still '+
+    'to play, as if the whole group had teed off together. Editing an Index or the tee is '+
+    'the only thing that reaches back into holes already locked.';
+}
+
+// The money already agreed on locked holes, shown before the user changes
+// anything so they can check it against the card in their pocket. The save
+// then verifies these same numbers come back untouched.
+function renderSettled(el,at){
+  if(at<=0){ el.innerHTML='<b>Nothing settled yet</b> — no holes have been locked.'; return; }
+  var t=calcTotals();
+  var h='<b>Settled through hole '+at+'</b><br>';
+  h+=G.players.map(function(p){
+    var v=t[p];
+    return p+' <span style="font-weight:700;color:'+(v>0?'var(--win)':v<0?'var(--loss)':'var(--muted)')+'">'+fmt(v)+'</span>';
+  }).join(' &nbsp;·&nbsp; ');
+  h+='<br><span style="color:var(--muted)">Adding or marking out a player will not move these. '+
+     'The Net column below is for the holes still to play.</span>';
+  el.innerHTML=h;
+}
+
+function saveSetupEdit(){
+  var rows=document.querySelectorAll('#ninputs .prow');
+  var at=nextUnplayedHole();
+  var snap=snapshotGame();
+  var renamed={},added=[],idxByName={},hiddenByName={};
+  for(var i=0;i<rows.length;i++){
+    var r=rows[i],nm=r.querySelector('.ni').value.trim(),ix=parseFloat(r.querySelector('.hi').value)||0;
+    if(r.dataset.player) renamed[r.dataset.player]=nm; else added.push(nm);
+    idxByName[nm]=ix;
+    hiddenByName[nm]=r.dataset.hidden==='1';
+  }
+
+  // Renames first — everything below this point is keyed by player name. A
+  // rename only moves keys, never money, so the settled baseline is taken
+  // after it, by which point it lines up with the names used below.
+  renamePlayers(G.players.map(function(p){return renamed[p]!==undefined?renamed[p]:p;}));
+  var beforeTotals=calcTotals(),beforeRaw=JSON.parse(JSON.stringify(G.raw));
+
+  for(var i=0;i<added.length;i++) addPlayerToGame(added[i],at);
+
+  for(var i=0;i<G.players.length;i++){
+    var p=G.players[i],want=!!hiddenByName[p];
+    if(want!==isHiddenPlayer(p)) setPlayerHidden(p,want,at);
+  }
+
+  // Netting is per hole and derived (see chdcpAt), so this only has to refresh
+  // the raw course handicaps. Holes already settled keep the reference they
+  // were played under; the holes still to play pick up the new one.
+  var idx=G.players.map(function(p){
+    return idxByName[p]!==undefined?idxByName[p]:(G.hdcp[p]||0);
+  });
+  if(G.course==='away') G.awayHoles=buildAwayHoles(collectAwaySI());
+  applyHandicaps(G.players,idx,activeTee());
+  applyRoster();
+
+  // Settled holes must not have moved. If no handicap was edited then this was
+  // a pure join/departure, and any change to the running totals is a bug —
+  // roll the whole save back rather than rewrite money already paid out.
+  if(changedHandicaps(beforeRaw,G.raw).length===0&&!totalsUnchanged(beforeTotals,calcTotals())){
+    restoreGame(snap);
+    buildEditInputs();
+    renderEditChrome();
+    var msg=document.getElementById('editmsg');
+    msg.textContent='Save cancelled — that change would have altered the money already settled on locked holes. Nothing was changed.';
+    msg.className='sigridmsg bad';
+    return;
+  }
+
+  exitEditMode();
+  showScreen('game'); renderGame();
+}
+
+function cancelSetupEdit(){
+  var snap=editSnap;
+  if(snap){
+    G.tee=snap.tee;
+    document.getElementById('awayrating').value=snap.rating;
+    document.getElementById('awayslope').value=snap.slope;
+    var inputs=document.querySelectorAll('#sigrid .siinp');
+    for(var i=0;i<inputs.length;i++) inputs[i].value=snap.si[i]==null?'':snap.si[i];
+  }
+  exitEditMode();
+  renderTeeInfo(); renderSIStatus();
   showScreen('game'); renderGame();
 }
 
@@ -467,7 +721,7 @@ function renderLB(){
   for(var i=0;i<sorted.length;i++){
     var p=sorted[i],v=t[p],ch=G.chdcp[p]||0;
     h+='<div class="lbr'+(i===0&&v>0?' lead':'')+'"><span class="lbp">'+(i+1)+'</span>';
-    h+='<span class="lbn">'+p+' <span style="font-size:10px;color:var(--muted)">CH'+ch+'</span></span>';
+    h+='<span class="lbn">'+p+' <span style="font-size:10px;color:var(--muted)">CH'+ch+(isHiddenPlayer(p)?' · OUT':'')+'</span></span>';
     h+='<span class="lba'+(v>0?' pos':v<0?' neg':'')+'">'+fmt(v)+'</span></div>';
   }
   h+='</div>';
@@ -488,9 +742,13 @@ function renderCard(){
   var locked=hole.locked,result=locked?calcResult(hole):null;
   var bset=!!hole.banker,hd=activeHoles()[hi],pm=holeMult(hi);
   var vw=BETS.filter(function(v){return v>=hole.lmin&&v<=hole.lmax;});
-  var nonB=G.players.filter(function(p){return p!==hole.banker;});
+  // Everything on this card is driven by who was actually in play for THIS
+  // hole, not G.players — a late arrival isn't asked to wager on holes played
+  // before they showed up, and a player who left stays on the holes they did.
+  var inPlay=holePlayers(hi);
+  var nonB=inPlay.filter(function(p){return p!==hole.banker;});
   var allW=bset&&nonB.every(function(p){return hole.wagers[p]!=null;});
-  var allS=bset&&G.players.every(function(p){return String(hole.strokes[p]).trim()!=='';});
+  var allS=bset&&inPlay.every(function(p){return String(hole.strokes[p]).trim()!=='';});
   var ready=allW&&allS;
   var lockLbl=!bset?'Select Banker':!allW?'All Players Must Wager':!allS?'Enter All Scores':'Lock Hole '+hole.hole;
 
@@ -499,10 +757,16 @@ function renderCard(){
   h+='<div class="hinfo">PAR '+hd.par+'<br>SI '+hd.si+'</div>';
   h+='<div class="bbadge"><span>🏦</span><span class="bnm">'+(hole.banker||'—')+'</span></div></div>';
 
+  if(inPlay.length<2){
+    h+='<div class="hnote">Fewer than two players are in play on this hole.<br>Open <b>Setup</b> to add a player or put one back in.</div></div>';
+    document.getElementById('hcard').innerHTML=h;
+    return;
+  }
+
   if(!locked){
     h+='<div class="sec"><span class="slbl">① WHO\'S THE BANKER?</span><div class="bpills">';
-    for(var i=0;i<G.players.length;i++){
-      var p=G.players[i];
+    for(var i=0;i<inPlay.length;i++){
+      var p=inPlay[i];
       h+='<button class="bpill'+(hole.banker===p?' on':'')+'" data-action="banker" data-p="'+p+'">'+p+'</button>';
     }
     h+='</div></div>';
@@ -532,8 +796,8 @@ function renderCard(){
 
   if(bset){
     h+='<div class="sec"><span class="slbl">'+(locked?'SCORES & RESULTS':'④ SCORES & PRESS')+'</span><div class="prows">';
-    for(var i=0;i<G.players.length;i++){
-      var p=G.players[i],ib=p===hole.banker;
+    for(var i=0;i<inPlay.length;i++){
+      var p=inPlay[i],ib=p===hole.banker;
       var pr=hole.press[p]||{player:false,banker:false};
       var bw=hole.wagers[p];
       var fwv=bw!=null?finalWager(bw,pr,hi):null;
@@ -635,9 +899,10 @@ document.addEventListener('input',function(e){
   G.holes[G.active].strokes[e.target.dataset.p]=e.target.value;
   renderLB();
   var hole=G.holes[G.active];
-  var nonB=G.players.filter(function(p){return p!==hole.banker;});
+  var inPlay=holePlayers(G.active);
+  var nonB=inPlay.filter(function(p){return p!==hole.banker;});
   var allW=!!hole.banker&&nonB.every(function(p){return hole.wagers[p]!=null;});
-  var allS=!!hole.banker&&G.players.every(function(p){return String(hole.strokes[p]).trim()!=='';});
+  var allS=!!hole.banker&&inPlay.every(function(p){return String(hole.strokes[p]).trim()!=='';});
   var btn=document.querySelector('.lbtn');
   if(btn){btn.disabled=!(allW&&allS);if(allW&&allS)btn.textContent='Lock Hole '+hole.hole;}
 });
@@ -707,16 +972,32 @@ function renderSummary(){
   for(var i=0;i<lh.length;i++){
     var hole=lh[i],r=calcResult(hole);
     lh2+='<div class="logr"><div class="logrh"><span class="lrh">H'+hole.hole+'</span><span class="lrb">🏦 '+hole.banker+'</span><span class="lrl">$'+hole.lmin+'-$'+hole.lmax+'</span></div><div class="lrres">';
-    for(var j=0;j<G.players.length;j++){var p=G.players[j],v=r?(r[p]||0):0;lh2+='<span class="lrc '+(v>0?'pos':v<0?'neg':'zero')+'">'+p+': '+fmt(v)+'</span>';}
+    var hp=holePlayers(hole.hole-1);
+    for(var j=0;j<hp.length;j++){var p=hp[j],v=r?(r[p]||0):0;lh2+='<span class="lrc '+(v>0?'pos':v<0?'neg':'zero')+'">'+p+': '+fmt(v)+'</span>';}
     lh2+='</div></div>';
   }
   document.getElementById('smlog').innerHTML=lh2;
 }
 
-document.getElementById('teeup').addEventListener('click',startGame);
+document.getElementById('teeup').addEventListener('click',function(){
+  if(editMode) saveSetupEdit(); else startGame();
+});
+document.getElementById('cancelsetup').addEventListener('click',cancelSetupEdit);
+document.getElementById('editbtn').addEventListener('click',openSetupEdit);
+document.getElementById('addplayer').addEventListener('click',function(){
+  var c=document.getElementById('ninputs');
+  c.appendChild(makeRow(c.children.length,'','',null,false));
+  chkValid();
+});
 document.getElementById('sumbtn').addEventListener('click',function(){showScreen('summary');renderSummary();});
 document.getElementById('backbtn').addEventListener('click',function(){showScreen('game');renderGame();});
-document.getElementById('newbtn').addEventListener('click',function(){showScreen('setup');});
+document.getElementById('newbtn').addEventListener('click',function(){
+  exitEditMode();
+  G.count=Math.max(2,Math.min(6,G.players.length||4));
+  document.getElementById('playercount').value=G.count;
+  buildInputs();
+  showScreen('setup');
+});
 
 var pc=document.getElementById('playercount');
 pc.addEventListener('input',function(){
@@ -741,7 +1022,7 @@ document.getElementById('pcplus').addEventListener('click',function(){
 });
 
 document.getElementById('coursepills').addEventListener('click',function(e){
-  var b=e.target.closest('.coursebtn-half'); if(!b) return;
+  var b=e.target.closest('.coursebtn-half'); if(!b||editMode) return;
   G.course=b.dataset.course; renderCourseUI(); renderSIStatus(); chkValid(); updateLiveHandicaps();
 });
 document.getElementById('teepills').addEventListener('click',function(e){
