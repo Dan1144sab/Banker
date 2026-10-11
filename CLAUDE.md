@@ -204,7 +204,10 @@ pattern of testing the real wiring, not a re-implementation of it.
   things that reach back into locked holes, and the mid-round note says so.
 
 - **`calcScores()`** computes each player's front/back/total gross strokes (summed from
-  locked holes' `strokes` field) and their net score (`total - G.chdcp`). This is
+  locked holes' `strokes` field) and their net score **through the holes played**:
+  gross minus the strokes actually received on those holes (`getStrokes`), not minus
+  a full 18-hole handicap — the Round Summary is viewable mid-round, and its column
+  header reads "Net Thru N" (N = locked holes; plain "Net" before any). This is
   separate from `calcTotals()`, which sums the $ betting results, not strokes.
 
 ## Mid-round setup editing
@@ -293,8 +296,10 @@ the top half vs bottom half of the setup rows — boxed on screen as Team 1 /
 Team 2 so the scorer sees them form while typing names. Base bet defaults to
 $20 (`HAMMER_BASE`, which also seeds the `#hmbase` input) **per man**. It is entirely separate money from Banker:
 `hammerTotals()` never feeds `calcTotals()`. The game leaderboard shows
-**Banker only by default**; a "+ Hammer" toggle (`lbMode`) switches it to one
+**Banker only by default**; a "Tap to Include Hammer" toggle (`lbMode`; reads
+"✓ Hammer Included" when on) switches it to one
 combined total per player with the Banker/Hammer split underneath. The summary
+screen is titled **Round Summary** (it can be opened any time mid-round) and
 has **one "Settle Up" box** (`renderSettleUp()`, `#smcard.hmsm`, dark Hammer-box
 style, headed by the 🏦 bank icon, plus the hammer graphic only when Hammer
 was played): Hammer team totals, then a table of Banker / Hammer / Settle up per
@@ -322,8 +327,9 @@ Rules as implemented (agreed with the user):
   *before* that throw and ends Hammer on the hole (no birdie double, no scores
   needed). The hole can't be locked while a throw is unanswered.
 - A team that is **down** on locked holes may **press**: doubles every hole from
-  `nextUnplayedHole()` to 18. Presses stack. The latest press can be undone
-  until a hole it covers is locked.
+  `nextUnplayedHole()` to 18. **One press per hole** (by either team) — the press
+  button disappears until that hole is locked. Presses on later holes stack. The
+  latest press can be undone until a hole it covers is locked.
 - Roster: teams are fixed at the tee. **A late arrival plays Banker only**,
   never Hammer. **If any team member leaves, the Hammer game is over** from the
   hole they left (`hammerEndsAt()` = earliest team member's roster `to`;

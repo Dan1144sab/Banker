@@ -372,7 +372,7 @@
 </div>
 
 <div id="summary" class="screen">
-  <div class="smtitle">🏆 Final Scores</div>
+  <div class="smtitle">Round Summary</div>
   <div id="smcard" class="hmsm"></div>
   <div id="smscore" class="smscore"></div>
   <div id="smstats" class="smstats"></div>
@@ -812,7 +812,7 @@ function showScreen(id){
 
 function renderGame(){renderLB();renderNav();renderHammer();renderCard();saveRound();}
 
-// The leaderboard is the Banker game. A Hammer round gets a "+ Hammer" toggle
+// The leaderboard is the Banker game. A Hammer round gets a "Tap to Include Hammer" toggle
 // that folds the Hammer money in, for the one number each player walks away
 // with.
 var lbMode='banker';
@@ -830,7 +830,7 @@ function renderLB(){
   if(G.hammer){
     var inc=lbMode==='combined';
     h+='<button class="lbinc'+(inc?' on':'')+'" id="lbinc" data-action="lbmode" data-v="'+(inc?'banker':'combined')+
-      '" aria-pressed="'+inc+'">'+(inc?'✓ ':'+ ')+'Hammer</button>';
+      '" aria-pressed="'+inc+'">'+(inc?'✓ Hammer Included':'Tap to Include Hammer')+'</button>';
   }
   h+='<span class="lbs">'+hp+'/18</span></span></div>';
 
@@ -1059,7 +1059,10 @@ function renderSummary(){
   // ---- Scorecard: front/back/total gross strokes + net (total - handicap) ----
   var sc=calcScores();
   var scSorted=G.players.slice().sort(function(a,b){return sc.net[a]-sc.net[b];});
-  var sh0='<table class="sctbl"><tr><th>Player</th><th>Front</th><th>Back</th><th>Total</th><th>Net</th></tr>';
+  // Net is through the locked holes only (see calcScores), so say how many.
+  var thru=G.holes.filter(function(x){return x.locked;}).length;
+  var sh0='<table class="sctbl"><tr><th>Player</th><th>Front</th><th>Back</th><th>Total</th><th>'+
+    (thru?'Net Thru '+thru:'Net')+'</th></tr>';
   for(var i=0;i<scSorted.length;i++){
     var p=scSorted[i],played=sc.total[p]>0;
     sh0+='<tr><td>'+p+'</td><td>'+(played?sc.front[p]:'–')+'</td><td>'+(played?sc.back[p]:'–')+'</td><td>'+(played?sc.total[p]:'–')+'</td><td class="scnet">'+(played?sc.net[p]:'–')+'</td></tr>';

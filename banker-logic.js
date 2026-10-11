@@ -394,19 +394,21 @@ function calcResult(hole){
 }
 
 // Gross strokes per player, split front/back/total across locked holes only.
-// Net = total gross strokes minus the player's net course handicap (G.chdcp).
+// Net = gross minus the strokes received on those same holes (getStrokes), so
+// mid-round it is net *through the holes played*, not gross minus a full
+// 18-hole handicap.
 function calcScores(){
   var front={},back={},total={},net={};
-  for(var i=0;i<G.players.length;i++){var p=G.players[i];front[p]=0;back[p]=0;total[p]=0;}
+  for(var i=0;i<G.players.length;i++){var p=G.players[i];front[p]=0;back[p]=0;total[p]=0;net[p]=0;}
   for(var i=0;i<G.holes.length;i++){
     var h=G.holes[i]; if(!h.locked) continue;
     for(var j=0;j<G.players.length;j++){
       var p=G.players[j],s=Number(h.strokes[p]); if(!s) continue;
       if(h.hole<=9) front[p]+=s; else back[p]+=s;
       total[p]+=s;
+      net[p]+=s-getStrokes(p,i);
     }
   }
-  for(var i=0;i<G.players.length;i++){var p=G.players[i];net[p]=total[p]-(G.chdcp[p]||0);}
   return {front:front,back:back,total:total,net:net};
 }
 
@@ -633,10 +635,14 @@ function hammerTeamTotals(){
   return out;
 }
 
-// Only a team that is down on the locked holes may press, and only while
-// there's a Hammer hole left to play.
+// Only a team that is down on the locked holes may press, only while there's
+// a Hammer hole left to play, and only once per hole — a press starting on
+// the current hole blocks another (by either team) until that hole is locked.
 function canHammerPress(team){
-  if(!G.hammer||nextUnplayedHole()>=hammerEndsAt()) return false;
+  if(!G.hammer) return false;
+  var at=nextUnplayedHole();
+  if(at>=hammerEndsAt()) return false;
+  if(G.hammer.presses.some(function(p){return p.from===at;})) return false;
   return hammerTeamTotals()[team]<0;
 }
 

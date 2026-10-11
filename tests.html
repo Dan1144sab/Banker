@@ -227,6 +227,17 @@ test('calcScores sums gross strokes into front/back/total and nets against handi
   assertEqual(sc.net.B,72,'72 total - 0 handicap');
 });
 
+test('calcScores nets only the strokes received on the holes played so far',function(){
+  G.course='home'; G.awayHoles=null; G.roster={}; G.raw={};
+  G.players=['A']; G.chdcp={A:10};
+  G.holes=initHoles(G.players);
+  for(var i=0;i<9;i++){ G.holes[i].locked=true; G.holes[i].strokes.A='5'; }
+  var sc=calcScores();
+  // Front-nine SIs 9,13,3,7,11,1,17,15,5: a 10 strokes on 9,3,7,1,5.
+  assertEqual(sc.total.A,45);
+  assertEqual(sc.net.A,40,'45 gross - 5 strokes received on the front, not - 10 for all 18');
+});
+
 test('calcScores only counts locked holes',function(){
   G.players=['A'];
   G.chdcp={A:0};
@@ -856,10 +867,28 @@ test('only the team that is down can press; presses stack from the first unplaye
   assertEqual(G.hammer.presses,[{team:1,from:1}]);
   assertEqual(hammerHoleValue(0),10,'the settled hole is untouched');
   assertEqual(hammerHoleValue(1),20); assertEqual(hammerHoleValue(17),20,'through the 18th');
-  assertTrue(hammerPress(1),'still down, so they can press again');
-  assertEqual(hammerHoleValue(1),40);
+  assertTrue(!canHammerPress(1)&&!hammerPress(1),'one press per hole, even while still down');
+  assertEqual(G.hammer.presses.length,1);
   hammerThrow(1,0); hammerAnswer(1,true);
-  assertEqual(hammerHoleValue(1),80,'hammers double on top of presses');
+  assertEqual(hammerHoleValue(1),40,'hammers double on top of presses');
+  hscore(1,5,5,5,5); G.holes[1].locked=true; // halved: still down
+  assertTrue(hammerPress(1),'next hole, still down: press again');
+  assertEqual(G.hammer.presses[1],{team:1,from:2});
+  assertEqual(hammerHoleValue(2),40,'presses stack: x2 x2');
+  hammerDone();
+});
+
+test('the one press on a hole can be by either team, and undoing it frees the hole',function(){
+  hammerFixture();
+  hscore(0,4,5,5,5); G.holes[0].locked=true;
+  hammerPress(1);
+  // The other team being down on the same hole is impossible on locked
+  // holes alone, so check the block directly: a press already starts here.
+  G.hammer.presses[0].team=0;
+  assertTrue(!canHammerPress(1),'Team 2 is down but Team 1\'s press already took this hole');
+  G.hammer.presses[0].team=1;
+  hammerUndoPress();
+  assertTrue(canHammerPress(1),'undone — the hole is free to press again');
   hammerDone();
 });
 
@@ -1593,6 +1622,7 @@ document.title=(fail?'✗ FAIL':'✓ PASS')+' — Banker Logic Tests';
       addResult('pressing doubles the holes still to play, and shows on the panel',
         fw.hammerHoleValue(1)===20&&/Cal & Dee pressed from H2/.test(fd.getElementById('hmbar').textContent),
         'hole 2 worth '+fw.hammerHoleValue(1));
+      addResult('one press per hole: the press button is gone until the next hole',!hbtn('hpress',1),'');
       hbtn('hunpress').click();
       addResult('an accidental press comes straight off',
         fw.G.hammer.presses.length===0&&fw.hammerHoleValue(1)===10,'presses='+fw.G.hammer.presses.length);
@@ -1612,13 +1642,14 @@ document.title=(fail?'✗ FAIL':'✓ PASS')+' — Banker Logic Tests';
       var lbEl=fd.getElementById('lb');
       addResult('the leaderboard shows Banker only by default',
         fw.lbMode==='banker'&&!/Hammer [+-]/.test(lbEl.textContent)
-        &&fd.querySelectorAll('#lb .lbr').length===4&&/\+ Hammer/.test(fd.getElementById('lbinc').textContent),
+        &&fd.querySelectorAll('#lb .lbr').length===4&&fd.getElementById('lbinc').textContent==='Tap to Include Hammer',
         lbEl.textContent.slice(0,160));
       fd.getElementById('lbinc').click();
       var annRow=[].filter.call(fd.querySelectorAll('#lb .lbr'),function(r){return /Ann/.test(r.textContent);})[0];
       var wantAnn=fw.calcTotals().Ann+fw.hammerTotals().Ann;
-      addResult('the + Hammer toggle folds the Hammer in, with both games shown underneath',
+      addResult('Tap to Include Hammer folds the Hammer in, with both games shown underneath',
         fd.querySelectorAll('#lb .lbr').length===4&&fd.getElementById('lbinc').classList.contains('on')
+        &&fd.getElementById('lbinc').textContent==='✓ Hammer Included'
         &&annRow.querySelector('.lba').textContent===fw.fmt(wantAnn)&&/Banker .* · Hammer \+\$40/.test(annRow.textContent),
         'Ann row="'+(annRow&&annRow.textContent)+'", want '+fw.fmt(wantAnn));
       fd.getElementById('lbinc').click();
@@ -1650,6 +1681,11 @@ document.title=(fail?'✗ FAIL':'✓ PASS')+' — Banker Logic Tests';
 
       // ---- Hammer: summary and resume ----
       fd.getElementById('sumbtn').click();
+      addResult('the summary is titled Round Summary',
+        fd.querySelector('#summary .smtitle').textContent==='Round Summary',fd.querySelector('#summary .smtitle').textContent);
+      var netTh=fd.querySelector('#smscore th:last-child').textContent;
+      addResult('the scorecard Net column says how many holes it covers',
+        netTh==='Net Thru '+fw.G.holes.filter(function(x){return x.locked;}).length,'header="'+netTh+'"');
       var smh=fd.getElementById('smcard');
       var suRows=smh.querySelectorAll('.sutbl tr');
       var suTot=[].slice.call(suRows,1).map(function(r){return r.querySelector('.sutot').textContent;});
