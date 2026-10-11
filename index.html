@@ -164,14 +164,16 @@
     .ubtn{width:100%;padding:10px;background:transparent;border:1.5px solid var(--border);border-radius:9px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;font-family:'DM Sans',sans-serif}
 
     .smtitle{font-family:'Bebas Neue',sans-serif;font-size:48px;color:var(--gold);letter-spacing:4px;flex-shrink:0}
-    .smcard{width:100%;max-width:440px;background:var(--cream);border-radius:18px;overflow:hidden;flex-shrink:0}
-    .smrow{display:flex;align-items:center;padding:15px 20px;border-bottom:1px solid var(--border);gap:12px}
-    .smrow:last-child{border-bottom:none}
-    .smrk{font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--muted);width:26px}
-    .smrk.g{color:var(--gold)}
-    .smnm{flex:1;font-weight:600;font-size:16px}
-    .smam{font-family:'Bebas Neue',sans-serif;font-size:28px}
-    .smam.pos{color:var(--win)}.smam.neg{color:var(--loss)}
+    .suicons{display:flex;align-items:center;gap:2px}
+    .sutbl{width:100%;border-collapse:collapse;margin-top:10px}
+    .sutbl th{font-size:10px;letter-spacing:1px;text-transform:uppercase;font-weight:700;color:rgba(255,255,255,0.45);padding:0 4px 6px;text-align:right}
+    .sutbl th.l{text-align:left}
+    .sutbl td{padding:9px 4px;border-top:1px solid rgba(255,255,255,0.08);text-align:right;font-size:13px;color:rgba(255,255,255,0.75);white-space:nowrap}
+    .sutbl td.surk{font-family:'Bebas Neue',sans-serif;font-size:22px;color:rgba(255,255,255,0.35);text-align:left;width:22px}
+    .sutbl td.surk.g{color:var(--gold)}
+    .sutbl td.sunm{text-align:left;font-weight:600;font-size:15px;color:var(--cream);white-space:normal}
+    .sutbl td.sutot{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:0.5px;color:var(--cream)}
+    .sutbl .pos{color:#4ade80}.sutbl .neg{color:#f87171}
     .smscore{width:100%;max-width:440px;background:var(--cream);border-radius:14px;overflow:hidden;flex-shrink:0}
     .sctbl{width:100%;border-collapse:collapse;font-size:12px}
     .sctbl th{font-size:10px;letter-spacing:1px;color:var(--muted);text-transform:uppercase;font-weight:700;padding:8px 6px;text-align:center;border-bottom:1.5px solid var(--border)}
@@ -241,12 +243,12 @@
     .hmbar{margin:5px 12px;background:var(--dark);border-radius:14px;border:1.5px solid var(--gold);color:var(--cream);overflow:hidden}
     .hmhdr{display:flex;align-items:center;gap:8px;padding:6px 12px;background:rgba(201,168,76,0.12)}
     .hmttl{font-family:'Bebas Neue',sans-serif;font-size:21px;letter-spacing:2px;color:var(--gold);line-height:1}
-    .hmval{margin-left:auto;font-weight:700;font-size:13px;color:var(--goldk);text-align:right}
+    .hmval{margin-left:auto;font-weight:700;font-size:13px;color:var(--goldk);text-align:right;white-space:nowrap}
     .hmteams{display:flex;gap:6px;padding:8px 12px 0}
-    .hmteam{flex:1;min-width:0;border:2px solid var(--tc);border-radius:10px;padding:7px 10px;font-size:16px;display:flex;align-items:center;justify-content:space-between;gap:6px}
+    .hmteam{flex:1;min-width:0;border:2px solid var(--tc);border-radius:10px;padding:7px 9px;font-size:16px;display:flex;align-items:center;justify-content:space-between;gap:6px}
     .t0{--tc:var(--gold)}
     .t1{--tc:#4ade80}
-    .hmtm{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .hmtm{font-weight:700;line-height:1.2;min-width:0;overflow-wrap:anywhere}
     .hmbtn.hmthrow{padding:7px 6px;display:flex;align-items:center;justify-content:center}
     .hmbtn.hmpbtn{padding:5px 8px;display:flex;align-items:center;justify-content:center;gap:10px;text-align:left}
     .hmpw{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:2px;line-height:1}
@@ -330,7 +332,7 @@
       </button>
       <div class="hmopts" id="hmopts" style="display:none">
         <span>Base bet</span><span style="font-weight:700;color:var(--txt)">$</span>
-        <input type="number" class="hi" id="hmbase" min="1" step="1" inputmode="numeric" value="10">
+        <input type="number" class="hi" id="hmbase" min="1" step="1" inputmode="numeric" value="20">
         <span>per man, per hole</span>
       </div>
     </div>
@@ -371,8 +373,7 @@
 
 <div id="summary" class="screen">
   <div class="smtitle">🏆 Final Scores</div>
-  <div id="smcard" class="smcard"></div>
-  <div id="smhammer" class="hmsm" style="display:none"></div>
+  <div id="smcard" class="hmsm"></div>
   <div id="smscore" class="smscore"></div>
   <div id="smstats" class="smstats"></div>
   <div id="smlog" class="smlog"></div>
@@ -1052,11 +1053,8 @@ document.addEventListener('input',function(e){
 });
 
 function renderSummary(){
-  var t=calcTotals(),sorted=G.players.slice().sort(function(a,b){return t[b]-t[a];});
-  var h='';
-  for(var i=0;i<sorted.length;i++){var p=sorted[i],v=t[p];h+='<div class="smrow"><span class="smrk'+(i===0?' g':'')+'">'+( i+1)+'</span><span class="smnm">'+p+'</span><span class="smam'+(v>0?' pos':v<0?' neg':'')+'">'+fmt(v)+'</span></div>';}
-  document.getElementById('smcard').innerHTML=h;
-  renderHammerSummary(t);
+  var t=calcTotals();
+  renderSettleUp(t);
 
   // ---- Scorecard: front/back/total gross strokes + net (total - handicap) ----
   var sc=calcScores();
@@ -1356,22 +1354,33 @@ function lastHammerCall(hi){
   return e.t==='throw'?'throw':e.t==='accept'?'accept':'decline';
 }
 
-function renderHammerSummary(banker){
-  var el=document.getElementById('smhammer');
-  if(!G.hammer){ el.style.display='none'; el.innerHTML=''; return; }
-  var pt=hammerTotals();
-  var h='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+hammerSVG(30)+
-    '<span class="hmttl">Hammer</span><span class="hmval">$'+G.hammer.base+'/man base</span></div>';
-  h+=hammerTeamBoxes().replace('class="hmteams"','class="hmteams" style="padding:0"');
-  h+='<div class="hmline" style="margin-top:10px"><b>Settle up — Banker + Hammer</b></div>';
-  h+='<table class="sctbl" style="color:var(--cream)"><tr><th>Player</th><th>Banker</th><th>Hammer</th><th>Total</th></tr>';
-  for(var i=0;i<G.players.length;i++){
-    var p=G.players[i],b=banker[p]||0,m=pt[p]||0;
-    h+='<tr><td>'+p+'</td><td>'+fmt(b)+'</td><td>'+(hammerTeamOf(p)<0?'–':fmt(m))+'</td><td class="scnet" style="color:var(--goldk)">'+fmt(b+m)+'</td></tr>';
+// The summary's one money section: Banker, Hammer and the settle-up total per
+// player, ranked by what each walks away with. Without Hammer it is just the
+// Banker standings in the same box.
+function renderSettleUp(banker){
+  var hm=!!G.hammer,pt=hm?hammerTotals():{},tot={};
+  for(var i=0;i<G.players.length;i++){var p=G.players[i];tot[p]=(banker[p]||0)+(pt[p]||0);}
+  var order=G.players.slice().sort(function(a,b){return tot[b]-tot[a];});
+  function cls(v){return v>0?' pos':v<0?' neg':'';}
+
+  // The bank (the app's 🏦 for the Banker game) always; the hammer beside it
+  // only when Hammer was played.
+  var h='<div style="display:flex;align-items:center;gap:8px"><span class="suicons">'+
+    '<span style="font-size:24px;line-height:1">🏦</span>'+(hm?hammerSVG(30):'')+'</span>'+
+    '<span class="hmttl">Settle Up</span>'+
+    '<span class="hmval">'+(hm?'Hammer $'+G.hammer.base+'/man':'')+'</span></div>';
+  if(hm) h+=hammerTeamBoxes().replace('class="hmteams"','class="hmteams" style="padding:10px 0 0"');
+
+  h+='<table class="sutbl"><tr><th class="l"></th><th class="l">Player</th>'+
+    (hm?'<th>Banker</th><th>Hammer</th><th>Settle up</th>':'<th>Total</th>')+'</tr>';
+  for(var i=0;i<order.length;i++){
+    var p=order[i],b=banker[p]||0,m=pt[p]||0,v=tot[p];
+    h+='<tr><td class="surk'+(i===0&&v>0?' g':'')+'">'+(i+1)+'</td><td class="sunm">'+p+'</td>';
+    if(hm) h+='<td class="'+cls(b).trim()+'">'+fmt(b)+'</td><td class="'+cls(m).trim()+'">'+(hammerTeamOf(p)<0?'–':fmt(m))+'</td>';
+    h+='<td class="sutot'+cls(v)+'">'+fmt(v)+'</td></tr>';
   }
   h+='</table>';
-  el.innerHTML=h;
-  el.style.display='block';
+  document.getElementById('smcard').innerHTML=h;
 }
 
 document.getElementById('hmtoggle').addEventListener('click',function(){
@@ -1474,6 +1483,7 @@ if(!STORE_PARAM){
   });
 }
 
+document.getElementById('hmbase').value=HAMMER_BASE;
 G.count=4;
 buildInputs();
 buildSIInputs();

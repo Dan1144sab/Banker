@@ -291,11 +291,14 @@ before adding to it:
 Opt-in on the setup screen (`#hmtoggle`), **even player counts only**. Teams are
 the top half vs bottom half of the setup rows — boxed on screen as Team 1 /
 Team 2 so the scorer sees them form while typing names. Base bet defaults to
-$10 (`HAMMER_BASE`) **per man**. It is entirely separate money from Banker:
+$20 (`HAMMER_BASE`, which also seeds the `#hmbase` input) **per man**. It is entirely separate money from Banker:
 `hammerTotals()` never feeds `calcTotals()`. The game leaderboard shows
 **Banker only by default**; a "+ Hammer" toggle (`lbMode`) switches it to one
 combined total per player with the Banker/Hammer split underneath. The summary
-shows both plus a combined settle-up.
+has **one "Settle Up" box** (`renderSettleUp()`, `#smcard.hmsm`, dark Hammer-box
+style, headed by the 🏦 bank icon, plus the hammer graphic only when Hammer
+was played): Hammer team totals, then a table of Banker / Hammer / Settle up per
+player, ranked by settle-up. Without Hammer it's the same box with Total only.
 
 In the game panel, teams are named by their players ("Ann & Ben +$20"), never
 "Team 1/2" — the gold/green box colour carries each team through to its throw
@@ -379,10 +382,10 @@ New Game). Pure pieces are in `banker-logic.js` (`serializeRound`, `parseRound`,
   Per the flexbox spec, a flex item whose own `overflow` is not `visible` gets an
   automatic minimum size of `0` — so when total content exceeds the viewport, the flex
   algorithm shrinks that item toward 0 *instead of* letting the container scroll past
-  it. `.smcard` has `overflow:hidden` (for its rounded corners) and was silently
-  collapsing to `offsetHeight:0` with 6 players, hiding the entire leaderboard with no
+  it. The old cream `.smcard` (since replaced by the Settle Up box) had `overflow:hidden`
+  (for its rounded corners) and was silently collapsing to `offsetHeight:0` with 6 players, hiding the entire leaderboard with no
   visual indication anything was wrong. Fix/pattern: every direct child of a scrolling
-  flex column (`.smtitle`, `.smcard`, `.hmsm`, `.smscore`, `.smstats`, `.smlog`, `.smbrow`) needs
+  flex column (`.smtitle`, `.hmsm`, `.smscore`, `.smstats`, `.smlog`, `.smbrow`) needs
   explicit `flex-shrink:0` so content height wins and the container scrolls instead.
   When adding a new child to `#summary` (or any similar scrolling flex column), give it
   `flex-shrink:0` too.

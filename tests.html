@@ -737,7 +737,7 @@ test('Hammer needs an even group, split top half vs bottom half',function(){
   assertEqual(hammerTeamsFor(['A','B']),[['A'],['B']]);
   var hm=initHammer(['A','B','C','D'],10);
   assertEqual(hm.base,10); assertEqual(hm.presses,[]); assertEqual(hm.log.length,18);
-  assertEqual(HAMMER_BASE,10,'the setup default');
+  assertEqual(HAMMER_BASE,20,'the setup default');
 });
 
 test('each team\'s low net plays; a tie halves the hole',function(){
@@ -1526,8 +1526,8 @@ document.title=(fail?'✗ FAIL':'✓ PASS')+' — Banker Logic Tests';
         &&tr[2].classList.contains('tmtop')&&tr[2].classList.contains('t1')&&tr[3].classList.contains('tmbot')
         &&tr[0].dataset.teamlbl==='TEAM 1'&&tr[2].dataset.teamlbl==='TEAM 2',
         [].map.call(tr,function(r){return r.className;}).join(' | '));
-      addResult('the base bet defaults to $10',
-        fd.getElementById('hmbase').value==='10'&&fd.getElementById('hmopts').style.display!=='none',
+      addResult('the base bet defaults to $20',
+        fd.getElementById('hmbase').value==='20'&&fd.getElementById('hmopts').style.display!=='none',
         'base='+fd.getElementById('hmbase').value);
       rowsN(6);
       tr=fd.querySelectorAll('#ninputs .prow');
@@ -1650,10 +1650,21 @@ document.title=(fail?'✗ FAIL':'✓ PASS')+' — Banker Logic Tests';
 
       // ---- Hammer: summary and resume ----
       fd.getElementById('sumbtn').click();
-      var smh=fd.getElementById('smhammer');
-      addResult('the summary shows the Hammer and a combined settle-up',
-        smh.style.display!=='none'&&/Settle up/.test(smh.textContent)&&/Ann & Ben/.test(smh.textContent),
-        smh.textContent.slice(0,120));
+      var smh=fd.getElementById('smcard');
+      var suRows=smh.querySelectorAll('.sutbl tr');
+      var suTot=[].slice.call(suRows,1).map(function(r){return r.querySelector('.sutot').textContent;});
+      var wantTop=fw.G.players.map(function(p){return fw.calcTotals()[p]+(fw.hammerTotals()[p]||0);})
+        .sort(function(a,b){return b-a;}).map(fw.fmt);
+      var eveRow=[].filter.call(suRows,function(r){return /Eve/.test(r.textContent);})[0];
+      addResult('the summary has one Settle Up box with Banker, Hammer and settle-up columns',
+        !fd.getElementById('smhammer')&&smh.classList.contains('hmsm')
+        &&/Settle Up/.test(smh.textContent)&&/Ann & Ben/.test(smh.textContent)
+        &&/BankerHammerSettle up/.test(suRows[0].textContent),
+        smh.textContent.slice(0,140));
+      addResult('ranked by settle-up total, Banker + Hammer per player',
+        JSON.stringify(suTot)===JSON.stringify(wantTop),'shown='+suTot.join(',')+' want='+wantTop.join(','));
+      addResult('a player not on the Hammer shows a dash for it',
+        eveRow&&eveRow.children[3].textContent==='–','Eve row='+(eveRow&&eveRow.textContent));
       fd.getElementById('backbtn').click();
       var wantHm=JSON.stringify(fw.G.hammer);
       fw.G.hammer=null; fw.gameLive=false;

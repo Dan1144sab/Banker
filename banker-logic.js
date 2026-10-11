@@ -450,7 +450,7 @@ function calcTotals(){
 //     unplayed one to the 18th doubles. Presses stack.
 // ---------------------------------------------------------------------------
 
-var HAMMER_BASE=10;
+var HAMMER_BASE=20;
 
 function canPlayHammer(n){return n>=2&&n%2===0;}
 
