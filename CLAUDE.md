@@ -82,6 +82,8 @@ server strictly required). It loads `banker-logic.js` and runs assertions coveri
 - The settled-money guard: `totalsUnchanged`, `changedHandicaps`, and a
   `snapshotGame`/`restoreGame` round-trip that rolls back a save which would
   have turned a settled $10 loss into a push
+- Who banks: `suggestedBanker` for hole 1, low net (ties, betting strokes, a
+  departed low net, hole 15), and most-down with and without Hammer money
 - Score entry: `cleanScoreEntry` (the 1-waits rule, 20+ refused, typing over),
   `isValidScore`, `nextOpenScore` wrapping, and `scoreEditImpact` for both Banker
   and Hammer money (and leaving `G` alone)
@@ -218,6 +220,22 @@ pattern of testing the real wiring, not a re-implementation of it.
   (who plays off 0) and is what the **bets** use; a score to par needs the real
   handicap. A plus handicap gives strokes back on the easiest holes (SI 18 first).
   Separate again from `calcTotals()`, which sums the $ betting results, not strokes.
+
+## Who banks, and the bet amounts
+
+- **Banker defaults** (`suggestedBanker(hi)`, applied by `applySuggestedBanker()` at
+  the top of `renderGame()` to an unlocked hole with no banker yet):
+  - Hole 1: none — the group flips a tee (the card says so).
+  - Holes 2–15 (`LOW_NET_BANKS_THRU`): the **outright** low net on the hole before,
+    using the betting strokes (`getStrokes`).
+  - Holes 16–18: whoever is **down the most, Banker + Hammer combined**.
+  - No default until the hole before is locked, on any tie, when nobody is down, or
+    if that player isn't in play on this hole. It's only a default — tapping another
+    name overrides it, and the override sticks (a hole that has a banker is never
+    re-defaulted). When it picks someone who'd already wagered on the hole (e.g. the
+    banker left mid-hole), only the new banker's own bet is cleared.
+- **Bet amounts** (`BETS`, used for both the limits and the wager pills) skip $15,
+  $350 and $450.
 
 ## Entering and fixing scores
 

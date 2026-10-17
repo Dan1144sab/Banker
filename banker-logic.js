@@ -2,7 +2,7 @@
 // Pure calculation functions plus the mutable game state (G).
 
 var HOLES = 18;
-var BETS = [5,10,15,20,25,30,40,50,75,100,125,150,175,200,250,300,350,400,450,500];
+var BETS = [5,10,20,25,30,40,50,75,100,125,150,175,200,250,300,400,500];
 var DEFAULT_MAX_BET = 20; // a new hole's banker limit, until the banker changes it
 var COURSE = {rating:71.3,slope:134,par:72,holes:[
   {h:1,par:4,si:9},{h:2,par:5,si:13},{h:3,par:4,si:3},{h:4,par:4,si:7},
@@ -729,4 +729,43 @@ function scoreEditImpact(hi,p,val){
     return (b0[q]||0)!==(b1[q]||0)||(m0[q]||0)!==(m1[q]||0);
   });
   return {moved:moved,banker:[b0,b1],hammer:[m0,m1]};
+}
+
+// ---------------------------------------------------------------------------
+// Who banks next
+//
+// Hole 1: nobody is suggested — the group flips a tee.
+// Holes 2-15: the outright low net on the hole before (betting strokes, the
+//   same netting the bets use).
+// Holes 16-18: the player down the most money, Banker and Hammer combined —
+//   it's their option to bank.
+// It's only a default: the scorer can always tap someone else. No suggestion
+// until the hole before is locked, on a tie, when nobody is down, or when the
+// player isn't in play on this hole.
+// ---------------------------------------------------------------------------
+
+var LOW_NET_BANKS_THRU=15; // last hole (1-based) decided by low net
+
+function suggestedBanker(hi){
+  if(hi<1||hi>=HOLES) return null;
+  var prev=G.holes[hi-1];
+  if(!prev||!prev.locked) return null;
+  var here=holePlayers(hi),pick=null,best=null,tie=false,why,cands,score;
+  if(hi+1<=LOW_NET_BANKS_THRU){
+    why='low'; cands=holePlayers(hi-1);
+    score=function(p){var g=Number(prev.strokes[p]);return g?g-getStrokes(p,hi-1):null;};
+  } else {
+    why='down'; cands=here;
+    var b=calcTotals(),m=hammerTotals();
+    score=function(p){return (b[p]||0)+(m[p]||0);};
+  }
+  for(var i=0;i<cands.length;i++){
+    var v=score(cands[i]);
+    if(v===null) continue;
+    if(best===null||v<best){ best=v; pick=cands[i]; tie=false; }
+    else if(v===best) tie=true;
+  }
+  if(pick===null||tie||here.indexOf(pick)===-1) return null;
+  if(why==='down'&&best>=0) return null;
+  return {player:pick,why:why,value:best};
 }

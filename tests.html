@@ -1052,6 +1052,74 @@ test('scoreEditImpact reports whose settled money a score change would move, and
   G.hammer=null;
 });
 
+// ---- Who banks next ----
+// Four players off scratch except where noted; hole 1 par 4, SI 9.
+function bankFixture(indexes){
+  G.course='home'; G.awayHoles=null; G.tee='white'; G.hammer=null;
+  G.players=['A','B','C','D']; G.roster=initRoster(G.players);
+  applyHandicaps(G.players,indexes||[0,0,0,0],TEES.white);
+  G.holes=initHoles(G.players);
+}
+function lockHole(hi,banker,scores){
+  var h=G.holes[hi]; h.banker=banker;
+  G.players.forEach(function(p,i){ if(p!==banker) h.wagers[p]=10; h.strokes[p]=String(scores[i]); });
+  h.locked=true;
+}
+
+test('the bet amounts no longer include $15, $350 or $450',function(){
+  assertEqual(BETS.indexOf(15),-1); assertEqual(BETS.indexOf(350),-1); assertEqual(BETS.indexOf(450),-1);
+  assertTrue(BETS.indexOf(20)!==-1&&BETS.indexOf(400)!==-1&&BETS.indexOf(500)!==-1,'neighbours kept');
+});
+
+test('hole 1 has no suggested banker — the group flips a tee',function(){
+  bankFixture();
+  assertEqual(suggestedBanker(0),null);
+});
+
+test('holes 2-15: the outright low net on the hole before banks',function(){
+  bankFixture();
+  assertEqual(suggestedBanker(1),null,'nothing until hole 1 is locked');
+  lockHole(0,'A',[5,4,6,6]);
+  assertEqual(suggestedBanker(1),{player:'B',why:'low',value:4});
+  G.holes[0].strokes.C='4';
+  assertEqual(suggestedBanker(1),null,'a tie for low net: no default');
+  lockHole(13,'A',[5,6,4,5]);
+  assertEqual(suggestedBanker(14).player,'C','hole 15 still goes by low net');
+});
+
+test('low net uses the betting strokes, not gross',function(){
+  // C off 10 strokes on hole 1 (SI 9): a gross 5 is a net 4, beating A's 5.
+  bankFixture([0,0,10,0]);
+  lockHole(0,'A',[5,6,5,6]);
+  assertEqual(suggestedBanker(1).player,'C');
+});
+
+test('a low net who has left the round is not suggested',function(){
+  bankFixture();
+  lockHole(0,'A',[5,4,6,6]);
+  setPlayerHidden('B',true,1);
+  assertEqual(suggestedBanker(1),null);
+  G.roster={};
+});
+
+test('holes 16-18: whoever is down the most, Banker + Hammer combined',function(){
+  bankFixture();
+  for(var i=0;i<15;i++) lockHole(i,'A',[4,4,4,4]); // all pushes: nobody down
+  assertEqual(suggestedBanker(15),null,'nobody is down — no default');
+  var h=G.holes[14]; h.strokes.B='5'; h.strokes.C='6'; // B and C lose $10 each
+  assertEqual(suggestedBanker(15),null,'B and C tied for most down');
+  h.wagers.C=20;
+  assertEqual(suggestedBanker(15),{player:'C',why:'down',value:-20});
+  // With Hammer, the combined number decides. Hole 15 is a par 5: D's 3 is a
+  // natural eagle, so C & D win the Hammer hole at $40 x2.
+  G.hammer=initHammer(G.players,40);
+  h.strokes.D='3';
+  assertEqual(hammerTotals().B,-80);
+  assertEqual(calcTotals().C,-20,'C is still the most down at Banker alone');
+  assertEqual(suggestedBanker(15),{player:'B',why:'down',value:-90},'B: -$10 Banker, -$80 Hammer');
+  G.hammer=null;
+});
+
 // ---- fmt ----
 test('fmt formats signed dollar amounts, zero as E',function(){
   assertEqual(fmt(0),'E');
@@ -1414,11 +1482,11 @@ document.title=(fail?'✗ FAIL':'✓ PASS')+' — Banker Logic Tests';
       fd.getElementById('editbtn').click();
       rowFor('Ann').querySelector('.inchk input').click();
       teeup.click();
-      addResult('marking out the banker of the hole in progress resets that hole to Select Banker',
-        fw.G.holes[1].banker===null&&/Select Banker/.test(fd.getElementById('hcard').textContent),
+      addResult('marking out the banker of the hole in progress hands it to the suggested banker (hole 1\'s low net)',
+        fw.G.holes[1].banker==='Garrett'&&/Garrett was low net on hole 1/.test(fd.getElementById('hcard').textContent),
         'banker='+fw.G.holes[1].banker);
-      addResult('the players still in that open hole keep the wagers they had already set',
-        fw.G.holes[1].wagers.Garrett===25&&fw.G.holes[1].wagers.Sam===25,
+      addResult('the new banker\'s own bet goes; the others keep the wagers they had already set',
+        fw.G.holes[1].wagers.Garrett===null&&fw.G.holes[1].wagers.Sam===25,
         'Garrett='+fw.G.holes[1].wagers.Garrett+', Sam='+fw.G.holes[1].wagers.Sam);
 
       // --- someone joins while the hole is already fully entered ---
@@ -1804,6 +1872,9 @@ document.title=(fail?'✗ FAIL':'✓ PASS')+' — Banker Logic Tests';
       }
       fd.getElementById('teeup').click();
       var s1=fw.G.holes[0];
+      addResult('hole 1 has no default banker and tells the scorer to flip a tee',
+        s1.banker===null&&/Flip a tee/.test((fd.getElementById('bnote')||{}).textContent||''),
+        'banker='+s1.banker+', note='+(fd.getElementById('bnote')||{}).textContent);
       s1.banker='P1'; fw.renderGame();
       addResult('a new hole defaults to a $20 max bet',
         s1.lmax===20&&!!fd.querySelector('.lp.on[data-action="lmax"][data-v="20"]'),'lmax='+s1.lmax);
@@ -1872,6 +1943,18 @@ document.title=(fail?'✗ FAIL':'✓ PASS')+' — Banker Logic Tests';
         'P3='+s1.strokes.P3);
       fd.getElementById('fcbtn').click();
       fw.gameLive=false; fw.localStorage.removeItem(KEY);
+
+      // ---- Who banks next (DOM) ----
+      var b2=fw.G.holes[1]; b2.banker=null;
+      fw.G.active=1; fw.renderGame();
+      addResult('hole 2 defaults to the low net from hole 1, and says why',
+        b2.banker==='P2'&&fd.querySelector('.bpill.on').dataset.p==='P2'
+        &&/P2 was low net on hole 1/.test(fd.getElementById('bnote').textContent),
+        'banker='+b2.banker+', note='+(fd.getElementById('bnote')||{}).textContent);
+      [].filter.call(fd.querySelectorAll('.bpill'),function(b){return b.dataset.p==='P3';})[0].click();
+      addResult('tapping another name overrides it',b2.banker==='P3'&&!fd.getElementById('bnote'),'banker='+b2.banker);
+      fw.G.active=0; fw.renderGame(); fw.G.active=1; fw.renderGame();
+      addResult('the override sticks when the scorer comes back to the hole',b2.banker==='P3','banker='+b2.banker);
     }catch(e){
       addResult('layout tests threw an error',false,e.message);
     }

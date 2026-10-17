@@ -112,6 +112,7 @@
 
     .bpills{display:flex;gap:6px;flex-wrap:wrap}
     .bpill{flex:1;min-width:56px;padding:9px 6px;border:2px solid var(--border);background:white;border-radius:9px;font-weight:600;font-size:13px;cursor:pointer;color:var(--muted);text-align:center;font-family:'DM Sans',sans-serif}
+    .bnote{font-size:11px;color:var(--muted);margin-top:7px;line-height:1.4}
     .bpill.on{border-color:var(--gold);background:var(--gold);color:var(--dark)}
 
     .limrow{display:flex;align-items:flex-start;gap:8px}
@@ -832,7 +833,31 @@ function showScreen(id){
   }
 }
 
-function renderGame(){renderLB();renderNav();renderHammer();renderCard();saveRound();}
+// A hole with no banker yet gets the suggested one (suggestedBanker) — a
+// default only; tapping another name overrides it like any banker change.
+function applySuggestedBanker(){
+  var hole=G.holes[G.active];
+  if(!hole||hole.locked||hole.banker) return;
+  var sg=suggestedBanker(G.active);
+  if(!sg) return;
+  // Only the new banker's own bet goes (a banker doesn't wager against
+  // themselves); anyone else who had already wagered keeps it.
+  hole.banker=sg.player;
+  hole.wagers[sg.player]=null;
+  hole.press[sg.player]={player:false,banker:false};
+}
+
+function bankerNote(hi,hole){
+  if(hi===0) return 'Flip a tee for the first banker.';
+  var sg=suggestedBanker(hi);
+  if(!sg||hole.banker!==sg.player) return '';
+  return (sg.why==='low'
+    ? sg.player+' was low net on hole '+hi+'.'
+    : sg.player+' is down the most ('+fmt(sg.value)+(G.hammer?', Banker + Hammer':'')+') — their option to bank.')+
+    ' Tap another name to change.';
+}
+
+function renderGame(){applySuggestedBanker();renderLB();renderNav();renderHammer();renderCard();saveRound();}
 
 // The leaderboard is the Banker game. A Hammer round gets a "Tap to Include Hammer" toggle
 // that folds the Hammer money in, for the one number each player walks away
@@ -919,7 +944,10 @@ function renderCard(){
       var p=inPlay[i];
       h+='<button class="bpill'+(hole.banker===p?' on':'')+'" data-action="banker" data-p="'+p+'">'+p+'</button>';
     }
-    h+='</div></div>';
+    h+='</div>';
+    var bn=bankerNote(hi,hole);
+    if(bn) h+='<div class="bnote" id="bnote">'+bn+'</div>';
+    h+='</div>';
   }
 
   if(bset&&!locked){
