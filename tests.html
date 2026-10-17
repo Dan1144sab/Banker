@@ -957,6 +957,72 @@ test('a team member leaving ends the Hammer from that hole; holes before it stil
   hammerDone();
 });
 
+test('Hammer started mid-round leaves the holes already played alone',function(){
+  hammerFixture();
+  G.hammer=null;
+  hscore(0,3,5,5,5); G.holes[0].locked=true; // a natural birdie on hole 1, before Hammer
+  hscore(1,6,6,6,6); G.holes[1].locked=true;
+  var before=calcTotals();
+  G.hammer=initHammerTeams([['A','D'],['B','C']],10,2);
+  assertEqual(hammerStart(),2);
+  assertTrue(!hammerLive(0)&&!hammerLive(1)&&hammerLive(2)&&hammerLive(17));
+  assertEqual(hammerHole(0),null,'no Hammer on a hole played before it started');
+  assertEqual(hammerTotals(),{A:0,D:0,B:0,C:0},'so nobody has Hammer money yet');
+  assertEqual(calcTotals(),before,'and the Banker money is untouched');
+  assertTrue(!canThrowHammer(1,0)&&!hammerThrow(1,0));
+  assertEqual(hammerTeamOf('D'),0,'teams are whatever was picked, not the row order');
+  hscore(2,4,5,5,5);
+  assertEqual(hammerHole(2).res,{A:10,D:10,B:-10,C:-10},'the first Hammer hole plays');
+  hammerDone();
+});
+
+test('a press never starts before the Hammer does',function(){
+  hammerFixture();
+  G.hammer=initHammerTeams([['A','B'],['C','D']],10,3);
+  hscore(0,4,4,4,4); G.holes[0].locked=true;
+  assertEqual(hammerPressFrom(),3);
+  G.hammer.log[3]=[]; hscore(3,4,5,5,5);
+  G.holes[1].locked=G.holes[2].locked=G.holes[3].locked=true;
+  assertTrue(hammerPress(1));
+  assertEqual(G.hammer.presses,[{team:1,from:4}]);
+  hammerDone();
+});
+
+test('a Hammer can be re-teamed until one of its holes is locked',function(){
+  hammerFixture();
+  assertTrue(hammerEditable(),'nothing played yet');
+  hscore(0,4,4,4,4); G.holes[0].locked=true;
+  assertTrue(!hammerEditable(),'hole 1 was played under these teams');
+  G.hammer=initHammerTeams([['A','B'],['C','D']],10,1);
+  assertTrue(hammerEditable(),'a Hammer starting on hole 2 has nothing settled');
+  G.holes[1].locked=true;
+  assertTrue(!hammerEditable());
+  G.hammer=null;
+  assertTrue(!hammerEditable());
+  hammerDone();
+});
+
+test('Hammer teams must be even and nobody plays on both',function(){
+  assertTrue(validHammerTeams([['A'],['B']]));
+  assertTrue(validHammerTeams([['A','D'],['B','C']]));
+  assertTrue(!validHammerTeams([['A','B','C'],['D']]),'3 vs 1');
+  assertTrue(!validHammerTeams([[],[]]),'empty');
+  assertTrue(!validHammerTeams([['A','B'],['B','C']]),'B on both');
+});
+
+test('a saved mid-round Hammer keeps its start hole; older saves start at the tee',function(){
+  hammerFixture();
+  G.hammer=initHammerTeams([['A','B'],['C','D']],20,5);
+  var o=parseRound(serializeRound());
+  assertTrue(!!o); assertEqual(o.hammer.from,5);
+  var old=JSON.parse(serializeRound()); delete old.hammer.from;
+  loadRound(parseRound(JSON.stringify(old)));
+  assertEqual(hammerStart(),0);
+  old.hammer.from=18;
+  assertEqual(parseRound(JSON.stringify(old)),null,'a start hole past the 18th is corrupt');
+  hammerDone();
+});
+
 test('a late arrival is not on a Hammer team',function(){
   hammerFixture();
   addPlayerToGame('E',3);
@@ -1955,6 +2021,65 @@ document.title=(fail?'✗ FAIL':'✓ PASS')+' — Banker Logic Tests';
       addResult('tapping another name overrides it',b2.banker==='P3'&&!fd.getElementById('bnote'),'banker='+b2.banker);
       fw.G.active=0; fw.renderGame(); fw.G.active=1; fw.renderGame();
       addResult('the override sticks when the scorer comes back to the hole',b2.banker==='P3','banker='+b2.banker);
+
+      // ---- Hammer switched on mid-round ----
+      var settled=JSON.stringify(fw.calcTotals());
+      fd.getElementById('editbtn').click();
+      var hmt2=fd.getElementById('hmtoggle'),pick=fd.getElementById('hmpick');
+      addResult('mid-round with no Hammer, the toggle is open and starts it on the next hole',
+        !hmt2.disabled&&!hmt2.classList.contains('lk')&&/start it on hole 2/.test(fd.getElementById('hmsub').textContent)
+        &&pick.style.display==='none',
+        'sub="'+fd.getElementById('hmsub').textContent+'"');
+      hmt2.click();
+      function chips(t){return [].map.call(pick.querySelectorAll('.hmpteam.t'+t+' .hmchip'),function(b){return b.textContent;});}
+      function chip(n){return [].filter.call(pick.querySelectorAll('.hmchip'),function(b){return b.textContent===n;})[0];}
+      addResult('switching it on shows the team picker, top half vs bottom half to start',
+        pick.style.display==='block'&&chips(0).join()==='P1,P2'&&chips(1).join()==='P3,P4'
+        &&/Starts on hole 2/.test(fd.getElementById('hmsub').textContent)&&!fd.getElementById('teeup').disabled,
+        chips(0)+' | '+chips(1));
+      chip('P2').click();
+      addResult('tapping a name moves them across, and uneven teams can\'t be saved',
+        chips(0).join()==='P1'&&chips(1).join()==='P2,P3,P4'&&fd.getElementById('teeup').disabled
+        &&/1 vs 3/.test(pick.textContent),
+        chips(0)+' | '+chips(1));
+      chip('P4').click();
+      addResult('P1 & P4 vs P2 & P3 can be saved',
+        chips(0).join()==='P1,P4'&&chips(1).join()==='P2,P3'&&!fd.getElementById('teeup').disabled,'');
+      fd.getElementById('teeup').click();
+      var hmG=fw.G.hammer;
+      addResult('saved: Hammer starts on hole 2 with the picked teams',
+        !!hmG&&hmG.from===1&&JSON.stringify(hmG.teams)==='[["P1","P4"],["P2","P3"]]'&&hmG.base===20,
+        JSON.stringify(hmG));
+      addResult('the settled hole is untouched — no Hammer money, Banker money the same',
+        JSON.stringify(fw.calcTotals())===settled&&fw.hammerHole(0)===null
+        &&JSON.stringify(fw.hammerTotals())==='{"P1":0,"P4":0,"P2":0,"P3":0}',
+        JSON.stringify(fw.hammerTotals()));
+      addResult('hole 2 has the Hammer panel with throw buttons',
+        fw.G.active===1&&fd.querySelectorAll('#hmbar [data-action="hthrow"]').length===2
+        &&/P1 & P4/.test(fd.getElementById('hmbar').textContent),'');
+      fw.G.active=0; fw.renderGame();
+      addResult('hole 1 says Hammer starts on hole 2',
+        /Hammer starts on hole 2/.test(fd.getElementById('hmbar').textContent)&&!fd.querySelector('#hmbar [data-action="hthrow"]'),
+        fd.getElementById('hmbar').textContent.slice(0,120));
+      fw.G.active=1; fw.renderGame();
+      fd.getElementById('editbtn').click();
+      addResult('before a Hammer hole is locked the teams can still be changed',
+        !hmt2.classList.contains('lk')&&pick.style.display==='block'&&chips(0).join()==='P1,P4','');
+      hmt2.click(); fd.getElementById('teeup').click();
+      addResult('or the Hammer switched back off',fw.G.hammer===null&&fd.getElementById('hmbar').innerHTML==='','');
+      fd.getElementById('editbtn').click(); hmt2.click(); fd.getElementById('teeup').click();
+      var h2=fw.G.holes[1]; h2.strokes={P1:'4',P2:'5',P3:'5',P4:'6'}; h2.locked=true;
+      fw.G.active=2; fw.renderGame();
+      fd.getElementById('editbtn').click();
+      addResult('once a Hammer hole is locked the teams are fixed, and the card says where it started',
+        hmt2.classList.contains('lk')&&pick.style.display==='none'
+        &&/P1 & P2 vs P3 & P4 · \$20\/man from hole 2/.test(fd.getElementById('hmsub').textContent),
+        'sub="'+fd.getElementById('hmsub').textContent+'"');
+      fd.getElementById('cancelsetup').click();
+      fd.getElementById('sumbtn').click();
+      addResult('the Round Summary says Hammer started on hole 2',/from H2/.test(fd.getElementById('smcard').textContent),
+        fd.getElementById('smcard').textContent.slice(0,120));
+      fw.gameLive=false; fw.localStorage.removeItem(KEY);
     }catch(e){
       addResult('layout tests threw an error',false,e.message);
     }

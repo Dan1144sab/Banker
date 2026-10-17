@@ -256,6 +256,14 @@
     .prow.tmbot{border-bottom:2px solid var(--tc);border-radius:0 0 12px 12px;padding-bottom:8px;margin-bottom:10px}
     .prow.tmtop.tmbot{border-radius:12px}
     .prow.tmpad{padding:0 10px}
+    .hmpick{margin-top:10px}
+    .hmpteams{display:flex;gap:8px}
+    .hmpteam{flex:1;min-width:0;border:2px solid var(--tc);border-radius:12px;padding:8px;display:flex;flex-direction:column;gap:6px;min-height:52px}
+    .hmpteam.t1{--tc:var(--green2)}
+    .hmplbl{font-size:10px;font-weight:700;letter-spacing:1.5px;color:var(--tc)}
+    .hmchip{border:1.5px solid var(--tc);background:white;color:var(--txt);border-radius:9px;padding:8px 6px;font-family:'DM Sans',sans-serif;font-weight:700;font-size:14px;cursor:pointer;overflow-wrap:anywhere;text-align:center}
+    .hmpmsg{font-size:12px;color:var(--muted);margin-top:6px;text-align:center}
+    .hmpmsg.bad{color:var(--loss);font-weight:600}
 
     /* ---- Hammer: game ---- */
     .hmbar{margin:5px 12px;background:var(--dark);border-radius:14px;border:1.5px solid var(--gold);color:var(--cream);overflow:hidden}
@@ -353,6 +361,7 @@
         <input type="number" class="hi" id="hmbase" min="1" step="1" inputmode="numeric" value="20">
         <span>per man, per hole</span>
       </div>
+      <div class="hmpick" id="hmpick" style="display:none"></div>
     </div>
     <div>
       <div class="prow" id="rowhdr" style="margin-bottom:2px">
@@ -600,7 +609,9 @@ function buildEditInputs(){
   c.innerHTML='';
   for(var i=0;i<G.players.length;i++){
     var p=G.players[i],ix=G.hdcp[p];
-    c.appendChild(makeRow(i,p,ix==null?'':String(ix),p,isHiddenPlayer(p)));
+    var row=makeRow(i,p,ix==null?'':String(ix),p,isHiddenPlayer(p));
+    if(hammerTeamOf(p)>=0) row.dataset.team=String(hammerTeamOf(p));
+    c.appendChild(row);
   }
   G.count=G.players.length;
   document.getElementById('playercount').value=G.count;
@@ -610,6 +621,7 @@ function buildEditInputs(){
 }
 
 function chkValid(){
+  renderHammerSetup();
   var c=document.getElementById('ninputs');
   var ns=c.querySelectorAll('.ni'),hs=c.querySelectorAll('.hi');
   var ok=true;
@@ -622,7 +634,8 @@ function chkValid(){
     if(!isValidSISequence(collectAwaySI())) ok=false;
   }
   if(editMode&&!chkEditRows()) ok=false;
-  if(!editMode&&hammerWanted()&&!(parseInt(document.getElementById('hmbase').value,10)>0)) ok=false;
+  if(hammerWanted()&&!(parseInt(document.getElementById('hmbase').value,10)>0)) ok=false;
+  if(editMode&&hmSetup.on&&hammerSetupOpen()&&!validHammerTeams(pickedTeams())) ok=false;
   document.getElementById('teeup').disabled=!ok;
 }
 
@@ -699,6 +712,8 @@ var editMode=false,editSnap=null;
 
 function openSetupEdit(){
   editMode=true;
+  hmSetup.on=!!G.hammer;
+  document.getElementById('hmbase').value=G.hammer?G.hammer.base:HAMMER_BASE;
   editSnap={tee:G.tee,
             rating:document.getElementById('awayrating').value,
             slope:document.getElementById('awayslope').value,
@@ -774,8 +789,9 @@ function saveSetupEdit(){
   // Renames first — everything below this point is keyed by player name. A
   // rename only moves keys, never money, so the settled baseline is taken
   // after it, by which point it lines up with the names used below.
+  var hmOpen=hammerSetupOpen(),hmTeams=pickedTeams();
   renamePlayers(G.players.map(function(p){return renamed[p]!==undefined?renamed[p]:p;}));
-  var beforeTotals=calcTotals(),beforeRaw=JSON.parse(JSON.stringify(G.raw));
+  var beforeTotals=calcTotals(),beforeHammer=hammerTotals(),beforeRaw=JSON.parse(JSON.stringify(G.raw));
 
   for(var i=0;i<added.length;i++) addPlayerToGame(added[i],at);
 
@@ -794,10 +810,20 @@ function saveSetupEdit(){
   applyHandicaps(G.players,idx,activeTee());
   applyRoster();
 
+  // Hammer switched on (or re-teamed) mid-round starts on the next hole to
+  // play, so it has nothing to say about the holes already locked.
+  if(hmOpen){
+    var base=parseInt(document.getElementById('hmbase').value,10);
+    if(!hmSetup.on) G.hammer=null;
+    else if(G.hammer&&sameHammerTeams(G.hammer.teams,hmTeams)) G.hammer.base=base;
+    else G.hammer=initHammerTeams(hmTeams,base,G.hammer?hammerStart():at);
+  }
+
   // Settled holes must not have moved. If no handicap was edited then this was
   // a pure join/departure, and any change to the running totals is a bug —
   // roll the whole save back rather than rewrite money already paid out.
-  if(changedHandicaps(beforeRaw,G.raw).length===0&&!totalsUnchanged(beforeTotals,calcTotals())){
+  if(changedHandicaps(beforeRaw,G.raw).length===0&&
+     !(totalsUnchanged(beforeTotals,calcTotals())&&totalsUnchanged(beforeHammer,hammerTotals()))){
     restoreGame(snap);
     buildEditInputs();
     renderEditChrome();
@@ -1346,11 +1372,15 @@ document.addEventListener('change',function(e){
 // ---------------------------------------------------------------------------
 // Hammer UI
 //
-// Setup: an opt-in toggle (even player counts only) and a base bet. While it
-// is on, the player rows are boxed into Team 1 (top half) and Team 2 (bottom
-// half) so the scorer can see the teams form as they type names. Mid-round
-// it is read-only, like the course toggle — teams and stake are fixed at the
-// tee.
+// Setup at the tee: an opt-in toggle (even player counts only) and a base
+// bet. While it is on, the player rows are boxed into Team 1 (top half) and
+// Team 2 (bottom half) so the scorer can see the teams form as they type
+// names.
+//
+// Setup mid-round: Hammer can still be switched on, starting on the next hole
+// to play. The rows can't be reordered by then, so the teams are picked in two
+// boxes under the toggle — tap a name to move it across. Once a Hammer hole
+// is locked the section is read-only, like the course toggle.
 //
 // Game: a panel above the hole card. Every call — throw, accept, decline,
 // press — is one tap and can be taken back with Undo, because on the course
@@ -1371,23 +1401,79 @@ function hammerSVG(px){
 
 function setupRowCount(){ return document.querySelectorAll('#ninputs .prow').length; }
 
-// What Tee It Up will do: Hammer on, and an even group to split into teams.
-function hammerWanted(){ return hmSetup.on&&canPlayHammer(setupRowCount()); }
+// Mid-round, can Hammer still be switched on/off and the teams picked? Until
+// a Hammer hole is locked, and only while there's a hole left to play.
+function hammerSetupOpen(){
+  if(!editMode) return true;
+  if(G.hammer) return hammerEditable();
+  return nextUnplayedHole()<HOLES;
+}
+
+// What Tee It Up / Save will do: Hammer on, with teams to play it.
+function hammerWanted(){
+  if(!hmSetup.on) return false;
+  return editMode?hammerSetupOpen():canPlayHammer(setupRowCount());
+}
+
+// The rows that can be on a team mid-round: everyone still in play after this
+// edit, late arrivals included. Each carries data-team="0"/"1".
+function pickRows(){
+  return Array.prototype.filter.call(document.querySelectorAll('#ninputs .prow'),
+    function(r){return r.dataset.hidden!=='1';});
+}
+function rowName(r){ var ni=r.querySelector('.ni'); return ni.value.trim()||ni.placeholder; }
+
+// Puts anyone without a team on one: the top half / bottom half split the
+// first time, then whichever team is short.
+function ensurePickTeams(){
+  var rows=pickRows(),fresh=rows.every(function(r){return r.dataset.team==null;});
+  rows.forEach(function(r,i){
+    if(r.dataset.team!=null) return;
+    if(fresh){ r.dataset.team=i<Math.ceil(rows.length/2)?'0':'1'; return; }
+    var n=[0,0]; rows.forEach(function(q){ if(q.dataset.team!=null) n[q.dataset.team]++; });
+    r.dataset.team=n[1]<n[0]?'1':'0';
+  });
+}
+
+function pickedTeams(){
+  var t=[[],[]];
+  pickRows().forEach(function(r){ if(r.dataset.team!=null) t[Number(r.dataset.team)].push(r.querySelector('.ni').value.trim()); });
+  return t;
+}
+
+function sameHammerTeams(a,b){
+  for(var t=0;t<2;t++){
+    if(a[t].length!==b[t].length) return false;
+    for(var i=0;i<a[t].length;i++) if(b[t].indexOf(a[t][i])===-1) return false;
+  }
+  return true;
+}
+
+// A name typed this edit hasn't been through anything yet.
+function esc(v){ return String(v).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
 
 function teamLabel(t){ return 'Team '+(t+1); }
 function teamNames(t){ return G.hammer.teams[t].join(' & '); }
 
 function renderHammerSetup(){
   var btn=document.getElementById('hmtoggle'),sub=document.getElementById('hmsub');
+  var pick=document.getElementById('hmpick');
   document.getElementById('hmicon').innerHTML=hammerSVG(44);
   var rows=document.querySelectorAll('#ninputs .prow'),n=rows.length;
-  var even=canPlayHammer(n),on;
-  if(editMode){
+  var even=canPlayHammer(n),on,open=hammerSetupOpen(),at=editMode?nextUnplayedHole():0;
+  if(editMode&&!open){
     on=!!G.hammer;
     btn.disabled=false; btn.classList.add('lk');
     sub.textContent=on
-      ? teamNames(0)+' vs '+teamNames(1)+' · $'+G.hammer.base+'/man. Marking a team member out ends the Hammer; new players play Banker only.'
-      : 'Not playing Hammer this round';
+      ? teamNames(0)+' vs '+teamNames(1)+' · $'+G.hammer.base+'/man'+(hammerStart()?' from hole '+(hammerStart()+1):'')+
+        '. Marking a team member out ends the Hammer; new players play Banker only.'
+      : 'Not playing Hammer — no holes left to play';
+  } else if(editMode){
+    on=hmSetup.on;
+    btn.disabled=false; btn.classList.remove('lk');
+    var from=G.hammer?hammerStart():at;
+    sub.textContent=on ? 'Starts on hole '+(from+1)+' · holes already played have no Hammer'
+      : 'Team side game · tap to start it on hole '+(from+1);
   } else {
     on=hmSetup.on&&even;
     btn.classList.remove('lk');
@@ -1398,10 +1484,33 @@ function renderHammerSetup(){
   }
   btn.classList.toggle('on',on);
   btn.setAttribute('aria-pressed',on?'true':'false');
-  document.getElementById('hmopts').style.display=(on&&!editMode)?'flex':'none';
+  document.getElementById('hmopts').style.display=(on&&open)?'flex':'none';
 
-  // Team boxes around the rows (setup only — mid-round the rows include late
-  // arrivals who aren't on a team, so the subtitle names the teams instead).
+  // Mid-round team picker.
+  var picking=editMode&&open&&on;
+  pick.style.display=picking?'block':'none';
+  if(picking){
+    ensurePickTeams();
+    var pr=pickRows(),cnt=[0,0],h='<div class="hmpteams">';
+    pr.forEach(function(r){cnt[r.dataset.team]++;});
+    for(var t=0;t<2;t++){
+      h+='<div class="hmpteam t'+t+'"><span class="hmplbl">'+teamLabel(t).toUpperCase()+'</span>';
+      pr.forEach(function(r,i){
+        if(Number(r.dataset.team)!==t) return;
+        h+='<button type="button" class="hmchip" data-pick="'+i+'" aria-label="Move '+esc(rowName(r))+' to '+
+          teamLabel(otherTeam(t))+'">'+esc(rowName(r))+'</button>';
+      });
+      h+='</div>';
+    }
+    var okT=cnt[0]===cnt[1]&&cnt[0]>0;
+    h+='</div><div class="hmpmsg'+(okT?'':' bad')+'">'+(okT?'Tap a name to move them to the other team.'
+      : pr.length%2?'Hammer needs an even number of players in play ('+pr.length+' now).'
+      : 'Teams must be even — '+cnt[0]+' vs '+cnt[1]+'. Tap a name to move them.')+'</div>';
+    pick.innerHTML=h;
+  } else pick.innerHTML='';
+
+  // Team boxes around the rows (setup at the tee only — mid-round the teams
+  // are picked in the boxes above instead).
   var box=on&&!editMode,k=n/2;
   document.getElementById('rowhdr').classList.toggle('tmpad',box);
   for(var i=0;i<n;i++){
@@ -1449,7 +1558,10 @@ function renderHammer(){
   h+='<span class="hmval">'+(live?money(value)+'/man this hole':'—')+'</span></div>';
   h+=hammerTeamBoxes()+'<div class="hmbody">';
 
-  if(!live){
+  if(hi<hammerStart()){
+    h+='<div class="hmline"><b>Hammer starts on hole '+(hammerStart()+1)+'.</b> It was switched on mid-round, '+
+      'so this hole is Banker only.</div>';
+  } else if(!live){
     var by=hammerEndedBy();
     h+='<div class="hmline"><b>The Hammer game is over.</b> '+(by?by+' left after hole '+hammerEndsAt()+', so ':'')+
       'there is no Hammer from here on — holes already played still count.</div>';
@@ -1497,7 +1609,7 @@ function renderHammer(){
     h+='</div>';
   }
   for(var i=0;i<pressers.length;i++){
-    var t=pressers[i],from=nextUnplayedHole();
+    var t=pressers[i],from=hammerPressFrom();
     h+='<div class="hmbtns"><button class="hmbtn hmpbtn t'+t+'" data-action="hpress" data-v="'+t+'" aria-label="'+
       teamNames(t)+' press">'+hammerSVG(34)+'<span><span class="hmpw">Press</span><small>doubles holes '+(from+1)+'–18</small></span></button></div>';
   }
@@ -1524,7 +1636,7 @@ function renderSettleUp(banker){
   var h='<div style="display:flex;align-items:center;gap:8px"><span class="suicons">'+
     '<span style="font-size:24px;line-height:1">🏦</span>'+(hm?hammerSVG(30):'')+'</span>'+
     '<span class="hmttl">Settle Up</span>'+
-    '<span class="hmval">'+(hm?'Hammer $'+G.hammer.base+'/man':'')+'</span></div>';
+    '<span class="hmval">'+(hm?'Hammer $'+G.hammer.base+'/man'+(hammerStart()?' · from H'+(hammerStart()+1):''):'')+'</span></div>';
   if(hm) h+=hammerTeamBoxes().replace('class="hmteams"','class="hmteams" style="padding:10px 0 0"');
 
   h+='<table class="sutbl"><tr><th class="l"></th><th class="l">Player</th>'+
@@ -1540,9 +1652,15 @@ function renderSettleUp(banker){
 }
 
 document.getElementById('hmtoggle').addEventListener('click',function(){
-  if(editMode||!canPlayHammer(setupRowCount())) return;
+  if(editMode?!hammerSetupOpen():!canPlayHammer(setupRowCount())) return;
   hmSetup.on=!hmSetup.on;
-  renderHammerSetup(); chkValid();
+  chkValid();
+});
+document.getElementById('hmpick').addEventListener('click',function(e){
+  var b=e.target.closest('[data-pick]'); if(!b) return;
+  var r=pickRows()[Number(b.dataset.pick)];
+  r.dataset.team=r.dataset.team==='0'?'1':'0';
+  chkValid();
 });
 document.getElementById('hmbase').addEventListener('input',chkValid);
 

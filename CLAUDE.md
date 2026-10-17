@@ -359,7 +359,9 @@ button (a large hammer graphic, no text) and its PRESS button. The setup screen'
 row boxes still say TEAM 1 / TEAM 2, since names aren't typed yet.
 
 State is `G.hammer` (null when not playing): `{base, teams:[[..],[..]],
-presses:[{team,from}], log:[18 x [events]]}`. **A hole's Hammer state is
+presses:[{team,from}], from, log:[18 x [events]]}`. `from` is the hole index
+Hammer starts on — read it via `hammerStart()` (saves from before mid-round
+starts have no `from` and mean 0). **A hole's Hammer state is
 replayed from its event log** (`hammerState()`), so undo is just popping the
 last event — keep it that way rather than storing derived fields.
 
@@ -375,16 +377,28 @@ Rules as implemented (agreed with the user):
   *before* that throw and ends Hammer on the hole (no birdie double, no scores
   needed). The hole can't be locked while a throw is unanswered.
 - A team that is **down** on locked holes may **press**: doubles every hole from
-  `nextUnplayedHole()` to 18. **One press per hole** (by either team) — the press
+  `hammerPressFrom()` (the next unplayed hole, never before `hammerStart()`) to 18. **One press per hole** (by either team) — the press
   button disappears until that hole is locked. Presses on later holes stack. The
   latest press can be undone until a hole it covers is locked.
-- Roster: teams are fixed at the tee. **A late arrival plays Banker only**,
+- Roster: **a player who arrives after Hammer started plays Banker only**,
   never Hammer. **If any team member leaves, the Hammer game is over** from the
   hole they left (`hammerEndsAt()` = earliest team member's roster `to`;
-  `hammerLive(hi)` is just `hi < hammerEndsAt()`). Holes before that still
+  `hammerLive(hi)` is `hammerStart() <= hi < hammerEndsAt()`). Holes before that still
   count; no throws or presses after it. Putting the player back in play
   revives it.
-- Mid-round setup shows the teams read-only (`.lk`); toggle and base can't change.
+- **Starting Hammer mid-round** (the game's Setup button): the toggle stays open
+  while `hammerSetupOpen()` — no Hammer yet and a hole left to play, or a
+  Hammer none of whose holes is locked yet (`hammerEditable()`). Turning it on
+  shows a team picker (`#hmpick`): two boxes of name chips, tap a name to move it
+  to the other team; rows carry `data-team`, and Save is disabled until
+  `validHammerTeams()` (even, non-empty). Everyone in play after the edit can
+  be picked, including players added in the same edit. Save builds it with
+  `initHammerTeams(teams, base, nextUnplayedHole())`, so **holes already
+  played have no Hammer at all** — `hammerHole()` is null before `from`, and
+  `saveSetupEdit()` rolls back if Hammer totals (like Banker totals) move. The
+  same window lets the scorer re-team, change the stake, or switch it off.
+  Once a Hammer hole is locked the section is read-only (`.lk`). The tee-off
+  setup still uses row order (top half vs bottom half), not the picker.
 
 Teams are stored by name, so `renamePlayers()` remaps `G.hammer.teams`, and
 `snapshotGame()`/`restoreGame()` and `serializeRound()`/`loadRound()` all carry

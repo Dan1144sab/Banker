@@ -324,7 +324,8 @@ function parseRound(text){
   if(o.course==='away'&&(!Array.isArray(o.awayHoles)||o.awayHoles.length!==HOLES)) return null;
   // A save from before Hammer existed simply has no hammer field.
   if(o.hammer!=null&&(!Array.isArray(o.hammer.teams)||o.hammer.teams.length!==2
-    ||!Array.isArray(o.hammer.log)||o.hammer.log.length!==HOLES||!Array.isArray(o.hammer.presses))) return null;
+    ||!Array.isArray(o.hammer.log)||o.hammer.log.length!==HOLES||!Array.isArray(o.hammer.presses)
+    ||(o.hammer.from!=null&&!(o.hammer.from>=0&&o.hammer.from<HOLES)))) return null;
   return o;
 }
 
@@ -439,12 +440,18 @@ function calcTotals(){
 //
 // G.hammer is null when the group isn't playing it, else
 //   {base:<$ per man>, teams:[[names],[names]], presses:[{team,from}],
-//    log:[<events for hole 1>, ... x18]}
+//    from:<hole index it starts on>, log:[<events for hole 1>, ... x18]}
 //
-// Teams are the top and bottom halves of the setup rows, fixed at the tee.
-// A late arrival plays Banker only — never Hammer. If any team member leaves,
-// the Hammer game is over from the hole they left (hammerEndsAt); every hole
-// before that is settled as played.
+// Started at the tee, the teams are the top and bottom halves of the setup
+// rows. It can also be started mid-round from Setup, with the teams picked
+// there; it then runs from the first unplayed hole (`from`), and every hole
+// before that has no Hammer at all — settled holes never move. Until a Hammer
+// hole is locked (hammerEditable) the teams and stake can still be changed
+// or the game switched off.
+//
+// A later arrival plays Banker only — never Hammer. If any team member
+// leaves, the Hammer game is over from the hole they left (hammerEndsAt);
+// every hole before that is settled as played.
 //
 // A hole's log is the sequence of hammer calls made on it — {t:'throw',team},
 // {t:'accept'}, {t:'decline'}. Everything else (what the hole is worth, who
@@ -473,9 +480,35 @@ function hammerTeamsFor(players){
 }
 
 function initHammer(players,base){
+  return initHammerTeams(hammerTeamsFor(players),base,0);
+}
+
+function initHammerTeams(teams,base,from){
   var log=[];
   for(var i=0;i<HOLES;i++) log.push([]);
-  return {base:base,teams:hammerTeamsFor(players),presses:[],log:log};
+  return {base:base,teams:[teams[0].slice(),teams[1].slice()],presses:[],from:from||0,log:log};
+}
+
+// The hole index Hammer starts on (saves from before mid-round starts have no
+// `from`: they started at the tee).
+function hammerStart(){
+  return G.hammer&&G.hammer.from?G.hammer.from:0;
+}
+
+// True until a hole with Hammer on it is locked: nothing has been settled
+// under these teams, so they (and the stake) can still change.
+function hammerEditable(){
+  if(!G.hammer) return false;
+  for(var i=hammerStart();i<G.holes.length;i++) if(G.holes[i].locked) return false;
+  return true;
+}
+
+// Two even teams of at least one player each, nobody on both.
+function validHammerTeams(teams){
+  if(!teams||teams.length!==2) return false;
+  var a=teams[0],b=teams[1];
+  if(!a.length||a.length!==b.length) return false;
+  return a.every(function(p){return b.indexOf(p)===-1;});
 }
 
 function otherTeam(t){return t===0?1:0;}
@@ -511,7 +544,7 @@ function hammerEndedBy(){
 }
 
 function hammerLive(hi){
-  return !!G.hammer&&hi<hammerEndsAt();
+  return !!G.hammer&&hi>=hammerStart()&&hi<hammerEndsAt();
 }
 
 // Replays a hole's log.
@@ -649,9 +682,15 @@ function hammerTeamTotals(){
 // Only a team that is down on the locked holes may press, only while there's
 // a Hammer hole left to play, and only once per hole — a press starting on
 // the current hole blocks another (by either team) until that hole is locked.
+// The hole a press made now starts on: the next one to play, but never
+// before Hammer itself starts.
+function hammerPressFrom(){
+  return Math.max(nextUnplayedHole(),hammerStart());
+}
+
 function canHammerPress(team){
   if(!G.hammer) return false;
-  var at=nextUnplayedHole();
+  var at=hammerPressFrom();
   if(at>=hammerEndsAt()) return false;
   if(G.hammer.presses.some(function(p){return p.from===at;})) return false;
   return hammerTeamTotals()[team]<0;
@@ -659,7 +698,7 @@ function canHammerPress(team){
 
 function hammerPress(team){
   if(!canHammerPress(team)) return false;
-  G.hammer.presses.push({team:team,from:nextUnplayedHole()});
+  G.hammer.presses.push({team:team,from:hammerPressFrom()});
   return true;
 }
 
