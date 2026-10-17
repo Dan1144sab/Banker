@@ -209,7 +209,8 @@ test('getStrokes reads the away SI sequence once G.awayHoles is set, not Rolling
 });
 
 // ---- calcScores ----
-test('calcScores sums gross strokes into front/back/total and nets against handicap',function(){
+test('calcScores sums gross strokes into front/back/total and nets to par off the handicap',function(){
+  G.course='home'; G.awayHoles=null; G.roster={}; G.raw={};
   G.players=['A','B'];
   G.chdcp={A:10,B:0};
   G.holes=initHoles(G.players);
@@ -222,9 +223,9 @@ test('calcScores sums gross strokes into front/back/total and nets against handi
   assertEqual(sc.front.A,45,'9 holes x 5 strokes');
   assertEqual(sc.back.A,45);
   assertEqual(sc.total.A,90);
-  assertEqual(sc.net.A,80,'90 total - 10 handicap');
+  assertEqual(sc.net.A,8,'90 gross - 10 strokes - par 72 = +8');
   assertEqual(sc.total.B,72);
-  assertEqual(sc.net.B,72,'72 total - 0 handicap');
+  assertEqual(sc.net.B,0,'72 gross off scratch on a par 72 is even');
 });
 
 test('calcScores nets only the strokes received on the holes played so far',function(){
@@ -235,7 +236,33 @@ test('calcScores nets only the strokes received on the holes played so far',func
   var sc=calcScores();
   // Front-nine SIs 9,13,3,7,11,1,17,15,5: a 10 strokes on 9,3,7,1,5.
   assertEqual(sc.total.A,45);
-  assertEqual(sc.net.A,40,'45 gross - 5 strokes received on the front, not - 10 for all 18');
+  assertEqual(sc.net.A,4,'45 gross - 5 strokes received on the front - par 36 = +4, not - 10 for all 18');
+});
+
+test('calcScores nets off the FULL course handicap, not relative to the low player',function(){
+  G.course='home'; G.awayHoles=null; G.roster={};
+  G.players=['A','B'];
+  G.raw={A:14,B:3}; G.chdcp={A:11,B:0}; // the group plays A off 11, B off 0
+  G.holes=initHoles(G.players);
+  for(var i=0;i<18;i++){ G.holes[i].locked=true; G.holes[i].strokes.A='5'; G.holes[i].strokes.B='4'; }
+  var sc=calcScores();
+  assertEqual(sc.net.A,4,'90 - 14 - 72: off 14, not the 11 used for the bets');
+  assertEqual(sc.net.B,-3,'72 - 3 - 72');
+  assertEqual(getStrokes('A',5),1,'the bets still use the netted handicap');
+  G.raw={};
+});
+
+test('calcScores: a plus handicap gives strokes back on the easiest holes',function(){
+  G.course='home'; G.awayHoles=null; G.roster={};
+  G.players=['P']; G.raw={P:-2}; G.chdcp={P:0};
+  G.holes=initHoles(G.players);
+  // Holes 16 (SI 18) and 7 (SI 17) — par 4 and par 3.
+  G.holes[15].locked=true; G.holes[15].strokes.P='4';
+  G.holes[6].locked=true; G.holes[6].strokes.P='3';
+  G.holes[0].locked=true; G.holes[0].strokes.P='4'; // SI 9: no adjustment
+  assertEqual(fullStrokes('P',15),-1); assertEqual(fullStrokes('P',6),-1); assertEqual(fullStrokes('P',0),0);
+  assertEqual(calcScores().net.P,2,'three pars, plus one back on each of the two easiest holes');
+  G.raw={};
 });
 
 test('calcScores only counts locked holes',function(){
@@ -489,7 +516,8 @@ test('isValidSISequence rejects a missing sequence outright',function(){
 test('initHoles starts every hole at the default $5-$50 limits',function(){
   var holes=initHoles(['A','B']);
   assertEqual(holes[0].lmin,5);
-  assertEqual(holes[0].lmax,50);
+  assertEqual(holes[0].lmax,20,'default max bet is $20');
+  assertEqual(DEFAULT_MAX_BET,20);
   assertEqual(holes[17].lmin,5);
 });
 
@@ -968,6 +996,60 @@ test('Hammer survives a save, a snapshot rollback, and an older save without it'
   old.hammer={teams:[['A']],log:[],presses:[]};
   assertEqual(parseRound(JSON.stringify(old)),null,'a mangled hammer field is refused');
   hammerDone();
+});
+
+// ---- Score entry ----
+test('cleanScoreEntry: 2-9 completes, a 1 waits for 10-19, 20+ and 0 are refused',function(){
+  function c(v){var r=cleanScoreEntry(v);return r.value+(r.advance?'>':'');}
+  assertEqual(c(''),'');
+  assertEqual(c('4'),'4>','a single digit 2-9 is a complete score');
+  assertEqual(c('9'),'9>');
+  assertEqual(c('1'),'1','a 1 waits — it is nearly always the start of 10-19');
+  assertEqual(c('10'),'10>'); assertEqual(c('12'),'12>'); assertEqual(c('19'),'19>');
+  assertEqual(c('45'),'5>','typing over a 4 replaces it rather than making 45');
+  assertEqual(c('123'),'3>');
+  assertEqual(c('20'),'','20 is never a score');
+  assertEqual(c('0'),''); assertEqual(c('07'),'7>');
+  assertEqual(c('x'),''); assertEqual(c(null),'');
+  assertEqual(MAX_SCORE,19);
+});
+
+test('isValidScore accepts 1-19 whole numbers only',function(){
+  assertEqual(['1','4','19',7].map(isValidScore),[true,true,true,true]);
+  assertEqual(['0','20','','4.5','x','-3'].map(isValidScore),[false,false,false,false,false,false]);
+});
+
+test('nextOpenScore goes to the next empty box, wrapping back to the top',function(){
+  var ps=['P1','P2','P3','P4'];
+  assertEqual(nextOpenScore(ps,{P1:'',P2:'5',P3:'',P4:''},'P2'),'P3');
+  assertEqual(nextOpenScore(ps,{P1:'',P2:'5',P3:'4',P4:'6'},'P2'),'P1','P3 and P4 are in, so back to P1');
+  assertEqual(nextOpenScore(ps,{P1:'4',P2:'5',P3:'',P4:'6'},'P4'),'P3');
+  assertEqual(nextOpenScore(ps,{P1:'4',P2:'5',P3:'4',P4:'6'},'P2'),null,'everyone is in');
+});
+
+test('scoreEditImpact reports whose settled money a score change would move, and leaves G alone',function(){
+  G.course='home'; G.awayHoles=null; G.roster={}; G.hammer=null;
+  G.players=['A','B','C']; applyHandicaps(G.players,[0,0,0],TEES.white);
+  G.holes=initHoles(G.players);
+  var h=G.holes[0];
+  h.banker='A'; h.wagers.B=10; h.wagers.C=10;
+  h.strokes.A='4'; h.strokes.B='5'; h.strokes.C='7'; h.locked=true;
+  var none=scoreEditImpact(0,'C','8');
+  assertEqual(none.moved,[],'C still loses to the banker — nothing moves');
+  var imp=scoreEditImpact(0,'B','3');
+  assertEqual(imp.moved,['A','B'],'B now beats the banker');
+  assertEqual([imp.banker[0].B,imp.banker[1].B],[-10,10]);
+  assertEqual(h.strokes.B,'5','G is untouched');
+  h.locked=false;
+  assertEqual(scoreEditImpact(0,'B','3').moved,[],'an unlocked hole has no settled money');
+  // Hammer money counts too.
+  G.players=['A','B','C','D']; applyHandicaps(G.players,[0,0,0,0],TEES.white);
+  G.holes=initHoles(G.players); G.hammer=initHammer(G.players,10);
+  var g=G.holes[0]; g.strokes={A:'4',B:'5',C:'5',D:'5'}; g.locked=true;
+  var hm=scoreEditImpact(0,'C','4');
+  assertEqual(hm.moved,['A','B','C','D'],'the Hammer hole is now halved');
+  assertEqual([hm.hammer[0].C,hm.hammer[1].C],[-10,0]);
+  G.hammer=null;
 });
 
 // ---- fmt ----
@@ -1707,6 +1789,89 @@ document.title=(fail?'✗ FAIL':'✓ PASS')+' — Banker Logic Tests';
       fw.offerResume(); fd.getElementById('mok').click();
       addResult('a resumed round brings its Hammer back',JSON.stringify(fw.G.hammer)===wantHm,'');
       fw.localStorage.removeItem(KEY);
+
+      // ---- Score entry on the hole card ----
+      fw.showScreen('summary');
+      fd.getElementById('newbtn').click();
+      if(modalOn()) fd.getElementById('mok').click();
+      if(fw.hmSetup.on){ rowsN(4); hmt.click(); }
+      rowsN(4);
+      var sn=fd.querySelectorAll('#ninputs .ni'),sx=fd.querySelectorAll('#ninputs .hi');
+      var sw=['P1','P2','P3','P4'];
+      for(var i=0;i<4;i++){
+        sn[i].value=sw[i]; sn[i].dispatchEvent(new fw.Event('input'));
+        sx[i].value='0'; sx[i].dispatchEvent(new fw.Event('input'));
+      }
+      fd.getElementById('teeup').click();
+      var s1=fw.G.holes[0];
+      s1.banker='P1'; fw.renderGame();
+      addResult('a new hole defaults to a $20 max bet',
+        s1.lmax===20&&!!fd.querySelector('.lp.on[data-action="lmax"][data-v="20"]'),'lmax='+s1.lmax);
+      s1.wagers.P2=10; s1.wagers.P3=10; s1.wagers.P4=10;
+      s1.strokes.P3='4'; s1.strokes.P4='6';
+      fw.renderGame();
+      function box(p){return [].filter.call(fd.querySelectorAll('#hcard .sinp'),function(b){return b.dataset.p===p;})[0];}
+      function typeScore(p,v){var b=box(p);b.focus();b.value=v;b.dispatchEvent(new fw.Event('input',{bubbles:true}));return b;}
+      typeScore('P2','5');
+      addResult('a score jumps to the next player without one — wrapping back to the top',
+        fd.activeElement===box('P1')&&s1.strokes.P2==='5',
+        'focused='+(fd.activeElement&&fd.activeElement.dataset.p));
+      typeScore('P1','1');
+      addResult('a 1 stays put, waiting for 10-19',fd.activeElement===box('P1'),'focused='+(fd.activeElement&&fd.activeElement.dataset.p));
+      typeScore('P1','12');
+      addResult('a 12 completes, and with every score in the keyboard goes away',
+        s1.strokes.P1==='12'&&!(fd.activeElement&&fd.activeElement.classList.contains('sinp')),
+        'P1='+s1.strokes.P1+', focused='+(fd.activeElement&&fd.activeElement.className));
+      typeScore('P1','125');
+      addResult('typing over a score replaces it — 20 or more is never kept',
+        s1.strokes.P1==='5'&&box('P1').value==='5','P1='+s1.strokes.P1);
+      var clrP1=box('P1').parentNode.querySelector('.sclr');
+      addResult('each score has a clear button',!!clrP1&&clrP1.style.visibility!=='hidden','');
+      clrP1.click();
+      addResult('clearing empties the score and puts the cursor in it',
+        s1.strokes.P1===''&&box('P1').value===''&&fd.activeElement===box('P1')
+        &&box('P1').parentNode.querySelector('.sclr').style.visibility==='hidden',
+        'P1="'+s1.strokes.P1+'", focused='+(fd.activeElement&&fd.activeElement.dataset.p));
+
+      // ---- Full scorecard ----
+      s1.strokes={P1:'4',P2:'5',P3:'6',P4:'7'}; s1.locked=true;
+      fw.G.active=1; fw.renderGame();
+      fd.getElementById('sumbtn').click();
+      var fcb=fd.getElementById('fcbtn');
+      addResult('the scorecard has a Show Full Scorecard button',!!fcb&&fcb.textContent==='Show Full Scorecard','');
+      fcb.click();
+      var fct=fd.querySelector('#smscore .fctbl');
+      var fth=fct?[].map.call(fct.querySelectorAll('tr:first-child th'),function(t){return t.textContent;}):[];
+      addResult('it shows every hole plus Out, In, Tot and Net Thru',
+        !!fct&&fth.length===23&&fth[10]==='Out'&&fth[20]==='In'&&fth[21]==='Tot'&&fth[22]==='Net Thru 1'
+        &&fd.getElementById('fcbtn').textContent==='Hide Full Scorecard',
+        fth.join(' '));
+      function fcIn(p){return [].filter.call(fd.querySelectorAll('.fcin'),function(b){return b.dataset.p===p&&b.dataset.hi==='0';})[0];}
+      function fcSet(p,v){var b=fcIn(p);b.value=v;b.dispatchEvent(new fw.Event('change',{bubbles:true}));}
+      addResult('scores on locked holes are editable; unplayed holes are not',
+        fd.querySelectorAll('.fcin').length===4,'inputs='+fd.querySelectorAll('.fcin').length);
+      fcSet('P4','8');
+      addResult('an edit that moves no settled money just applies',
+        !modalOn()&&s1.strokes.P4==='8'&&fd.querySelector('#smscore .fctbl'),'P4='+s1.strokes.P4+', modal='+modalOn());
+      var before=JSON.stringify(fw.calcTotals());
+      fcSet('P2','3');
+      addResult('an edit that changes settled bets warns first, naming the money that moves',
+        modalOn()&&/Change settled money/.test(fd.getElementById('mtitle').textContent)
+        &&/P2/.test(fd.getElementById('mbody').textContent)&&/Banker -\$10 → \+\$10/.test(fd.getElementById('mbody').textContent)
+        &&s1.strokes.P2==='5',
+        fd.getElementById('mbody').textContent.slice(0,200));
+      fd.getElementById('mcancel').click();
+      addResult('cancelling keeps the old score',
+        s1.strokes.P2==='5'&&fcIn('P2').value==='5'&&JSON.stringify(fw.calcTotals())===before,'P2='+s1.strokes.P2);
+      fcSet('P2','3'); fd.getElementById('mok').click();
+      addResult('confirming applies it and the money moves',
+        s1.strokes.P2==='3'&&fw.calcTotals().P2===10&&fcIn('P2').value==='3','P2='+s1.strokes.P2+', totals='+JSON.stringify(fw.calcTotals()));
+      fcSet('P3','25');
+      addResult('an impossible score is refused and put back',
+        s1.strokes.P3==='6'&&fcIn('P3').value==='6'&&/1–19/.test(fd.getElementById('fcmsg').textContent),
+        'P3='+s1.strokes.P3);
+      fd.getElementById('fcbtn').click();
+      fw.gameLive=false; fw.localStorage.removeItem(KEY);
     }catch(e){
       addResult('layout tests threw an error',false,e.message);
     }

@@ -3,6 +3,7 @@
 
 var HOLES = 18;
 var BETS = [5,10,15,20,25,30,40,50,75,100,125,150,175,200,250,300,350,400,450,500];
+var DEFAULT_MAX_BET = 20; // a new hole's banker limit, until the banker changes it
 var COURSE = {rating:71.3,slope:134,par:72,holes:[
   {h:1,par:4,si:9},{h:2,par:5,si:13},{h:3,par:4,si:3},{h:4,par:4,si:7},
   {h:5,par:3,si:11},{h:6,par:5,si:1},{h:7,par:3,si:17},{h:8,par:4,si:15},
@@ -142,7 +143,7 @@ function initHoles(players){
       pr[players[j]]={player:false,banker:false};
       sc[players[j]]='';
     }
-    arr.push({hole:i+1,banker:null,lmin:5,lmax:50,wagers:w,press:pr,strokes:sc,locked:false});
+    arr.push({hole:i+1,banker:null,lmin:5,lmax:DEFAULT_MAX_BET,wagers:w,press:pr,strokes:sc,locked:false});
   }
   return arr;
 }
@@ -393,10 +394,20 @@ function calcResult(hole){
   return res;
 }
 
+// Strokes a player receives on a hole off their FULL course handicap (G.raw),
+// not netted to the group's low player like getStrokes() — this is what a
+// net score to par uses. A plus handicap gives strokes back, on the easiest
+// holes first. Falls back to G.chdcp for a game that never set G.raw.
+function fullStrokes(p,hi){
+  var ch=(G.raw&&G.raw[p]!=null)?G.raw[p]:(G.chdcp[p]||0),si=activeHoles()[hi].si;
+  if(ch>=0) return (ch>=si?1:0)+(ch>=18+si?1:0);
+  return (si>18+ch?-1:0);
+}
+
 // Gross strokes per player, split front/back/total across locked holes only.
-// Net = gross minus the strokes received on those same holes (getStrokes), so
-// mid-round it is net *through the holes played*, not gross minus a full
-// 18-hole handicap.
+// Net = net score TO PAR through the holes played: gross, minus the strokes
+// received on each of those holes off the player's full course handicap
+// (fullStrokes), minus that hole's par. 0 is even par.
 function calcScores(){
   var front={},back={},total={},net={};
   for(var i=0;i<G.players.length;i++){var p=G.players[i];front[p]=0;back[p]=0;total[p]=0;net[p]=0;}
@@ -406,7 +417,7 @@ function calcScores(){
       var p=G.players[j],s=Number(h.strokes[p]); if(!s) continue;
       if(h.hole<=9) front[p]+=s; else back[p]+=s;
       total[p]+=s;
-      net[p]+=s-getStrokes(p,i);
+      net[p]+=s-fullStrokes(p,i)-activeHoles()[i].par;
     }
   }
   return {front:front,back:back,total:total,net:net};
@@ -665,4 +676,57 @@ function hammerUndoPress(){
   if(!canUndoHammerPress()) return false;
   G.hammer.presses.pop();
   return true;
+}
+
+// ---------------------------------------------------------------------------
+// Score entry
+//
+// The hole card jumps to the next empty score box as soon as a score is
+// complete. A "1" is held, because it is almost always the start of 10-19
+// (a hole in one is rarer still, and the scorer can just tap on). 20 or more
+// is never a real score.
+// ---------------------------------------------------------------------------
+
+var MAX_SCORE=19;
+
+// Cleans what's in a score box. Returns {value, advance}: the value to keep in
+// the box and whether entry is complete. Typing into a box that already holds
+// a single digit (e.g. "4" then "5" → "45") replaces it rather than making an
+// impossible score.
+function cleanScoreEntry(raw){
+  var v=String(raw==null?'':raw).replace(/\D/g,'').replace(/^0+/,'');
+  if(v.length>1&&Number(v)>MAX_SCORE) v=v.slice(-1).replace(/^0+/,'');
+  return {value:v,advance:v!==''&&v!=='1'};
+}
+
+function isValidScore(v){
+  var n=Number(v);
+  return /^\d+$/.test(String(v))&&n>=1&&n<=MAX_SCORE;
+}
+
+// The next player, in card order after p and wrapping round to the top, who
+// has no score yet — or null if everyone has one.
+function nextOpenScore(players,strokes,p){
+  var i=players.indexOf(p),n=players.length;
+  for(var k=1;k<n;k++){
+    var q=players[(i+k)%n];
+    if(String(strokes[q]==null?'':strokes[q]).trim()==='') return q;
+  }
+  return null;
+}
+
+// What changing one score would do to the money already on the card: Banker
+// and Hammer totals before and after, and which players' money moves. Only
+// locked holes count towards totals, so this is the settled money. G is left
+// exactly as it was.
+function scoreEditImpact(hi,p,val){
+  var h=G.holes[hi],old=h.strokes[p];
+  var b0=calcTotals(),m0=hammerTotals();
+  h.strokes[p]=val;
+  var b1=calcTotals(),m1=hammerTotals();
+  h.strokes[p]=old;
+  var moved=G.players.filter(function(q){
+    return (b0[q]||0)!==(b1[q]||0)||(m0[q]||0)!==(m1[q]||0);
+  });
+  return {moved:moved,banker:[b0,b1],hammer:[m0,m1]};
 }

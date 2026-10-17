@@ -144,6 +144,7 @@
     .sinp{width:56px;height:46px;text-align:center;border:2px solid var(--border);border-radius:9px;font-size:22px;font-weight:700;font-family:'Bebas Neue',sans-serif;color:var(--dark);background:var(--cream);-webkit-appearance:none}
     .sinp:focus{outline:none;border-color:var(--green)}
     .sinp:disabled{opacity:0.55;background:#eee}
+    .sclr{width:28px;height:28px;flex-shrink:0;border-radius:50%;border:1.5px solid var(--border);background:white;color:var(--muted);font-size:12px;line-height:1;cursor:pointer;padding:0;font-family:'DM Sans',sans-serif}
     .nbadge{font-size:12px;font-weight:700;background:#ede9fe;color:#7c3aed;border-radius:5px;padding:2px 6px}
     .rchip{font-size:13px;font-weight:700;padding:5px 9px;border-radius:7px;min-width:50px;text-align:center}
     .rchip.win{background:#dcfce7;color:var(--win)}
@@ -182,6 +183,22 @@
     .sctbl tr:last-child td{border-bottom:none}
     .sctbl td:first-child{text-align:left;font-weight:700}
     .sctbl td.scnet{color:var(--green);font-weight:700}
+    .fcwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+    .fctbl{border-collapse:collapse;font-size:12px;white-space:nowrap}
+    .fctbl th,.fctbl td{padding:5px 2px;text-align:center;border-bottom:1px solid #f0e8d8;min-width:28px;font-weight:600}
+    .fctbl th{font-size:10px;color:var(--muted);font-weight:700;border-bottom:1.5px solid var(--border)}
+    .fctbl th:first-child,.fctbl td:first-child{position:sticky;left:0;z-index:1;background:var(--cream);text-align:left;padding-left:10px;min-width:62px;font-weight:700}
+    .fctbl tr.fcpar td{color:var(--muted);font-size:10px;font-weight:600}
+    .fctbl .fcsum{background:#efe7d4;font-weight:700;padding:5px 5px}
+    .fctbl td.fcnet{color:var(--green);font-weight:700;padding:5px 8px}
+    .fctbl td.fcna{color:#c9bfa8}
+    .fctbl td.fcopen{color:var(--muted)}
+    .fcin{width:28px;height:26px;padding:0;border:1.5px solid transparent;border-radius:6px;background:transparent;text-align:center;font:inherit;font-weight:600;color:var(--txt);-webkit-appearance:none;-moz-appearance:textfield;appearance:textfield}
+    .fcin::-webkit-inner-spin-button,.fcin::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+    .fcin:focus{outline:none;border-color:var(--green);background:white}
+    .fcin.bird{color:var(--win);font-weight:800}
+    .fchint{font-size:11px;color:var(--muted);padding:8px 10px 0;line-height:1.4}
+    .fcbtn{display:block;width:100%;padding:11px;border:none;border-top:1.5px solid var(--border);background:transparent;color:var(--green);font-weight:700;font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif}
     .smlog{width:100%;max-width:440px;flex-shrink:0}
     .smstats{width:100%;max-width:440px;background:rgba(255,255,255,0.06);border-radius:14px;padding:6px 16px;flex-shrink:0}
     .stt{font-family:'Bebas Neue',sans-serif;color:rgba(255,255,255,0.45);font-size:15px;letter-spacing:2px;text-align:center;padding:10px 0 6px}
@@ -432,6 +449,11 @@ function updateLiveHandicaps(){
 
 function fmtNet(n){
   return n===0?'0':(n>0?'+'+n:String(n));
+}
+
+// A score relative to par: +3, -2, or E for even.
+function fmtToPar(n){
+  return n===0?'E':(n>0?'+'+n:'-'+Math.abs(n));
 }
 
 function buildSIInputs(){
@@ -939,7 +961,9 @@ function renderCard(){
       if(!ib&&bw!=null) h+='<span class="wtag">'+(m>1?'base $'+bw+' → $'+fwv:'$'+bw)+'</span>';
       h+='</div><div class="iarea">';
       if(stk>0) h+='<span class="sbadge">+'+stk+'</span>';
-      h+='<input type="number" inputmode="numeric" pattern="[0-9]*" min="1" max="15" class="sinp"'+(locked?' disabled':'')+' value="'+hole.strokes[p]+'" placeholder="—" data-action="score" data-p="'+p+'"/>';
+      h+='<input type="number" inputmode="numeric" pattern="[0-9]*" min="1" max="'+MAX_SCORE+'" class="sinp"'+(locked?' disabled':'')+' value="'+hole.strokes[p]+'" placeholder="—" data-action="score" data-p="'+p+'"/>';
+      if(!locked) h+='<button class="sclr" data-action="sclear" data-p="'+p+'" aria-label="Clear '+p+'\'s score" title="Clear score"'+
+        (String(hole.strokes[p]).trim()===''?' style="visibility:hidden"':'')+'>✕</button>';
       if(net&&stk>0) h+='<span class="nbadge">net '+net+'</span>';
       if(locked&&rv!==null) h+='<div class="rchip '+cc+'">'+fmt(rv)+'</div>';
       h+='</div></div>';
@@ -1014,6 +1038,10 @@ document.addEventListener('click',function(e){
     setTimeout(function(){var nav=document.getElementById('hnav');if(nav.children[G.active])nav.children[G.active].scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});},100);
   } else if(a==='unlock'){
     hole.locked=false; renderGame();
+  } else if(a==='sclear'){
+    hole.strokes[p]=''; renderGame(); focusScoreBox(p);
+  } else if(a==='fctoggle'){
+    fullCard=!fullCard; renderSummary();
   } else if(a==='lbmode'){
     lbMode=v; renderLB();
   } else if(a==='hthrow'){
@@ -1034,9 +1062,22 @@ document.getElementById('hnav').addEventListener('click',function(e){
   G.active=parseInt(b.dataset.hi); renderGame();
 });
 
+function focusScoreBox(p){
+  var boxes=document.querySelectorAll('#hcard .sinp');
+  for(var i=0;i<boxes.length;i++) if(boxes[i].dataset.p===p){ boxes[i].focus(); return true; }
+  return false;
+}
+
+// Typing a score: clean it (cleanScoreEntry), keep the clear button in step,
+// and once the score is complete jump to the next player with no score —
+// wrapping round to the top — or put the keyboard away if they're all in.
 document.addEventListener('input',function(e){
   if(!e.target.classList.contains('sinp')) return;
-  G.holes[G.active].strokes[e.target.dataset.p]=e.target.value;
+  var inp=e.target,sp=inp.dataset.p,c=cleanScoreEntry(inp.value);
+  if(inp.value!==c.value) inp.value=c.value;
+  G.holes[G.active].strokes[sp]=c.value;
+  var clr=inp.parentNode.querySelector('.sclr');
+  if(clr) clr.style.visibility=c.value?'visible':'hidden';
   renderLB(); saveRound();
   var hole=G.holes[G.active];
   var inPlay=holePlayers(G.active);
@@ -1050,6 +1091,10 @@ document.addEventListener('input',function(e){
     if(allW&&allS) btn.textContent=hmWait?'Answer the Hammer First':'Lock Hole '+hole.hole;
   }
   renderHammer();
+  if(c.advance){
+    var nx=nextOpenScore(inPlay,hole.strokes,sp);
+    if(!(nx&&focusScoreBox(nx))) inp.blur();
+  }
 });
 
 function renderSummary(){
@@ -1061,13 +1106,17 @@ function renderSummary(){
   var scSorted=G.players.slice().sort(function(a,b){return sc.net[a]-sc.net[b];});
   // Net is through the locked holes only (see calcScores), so say how many.
   var thru=G.holes.filter(function(x){return x.locked;}).length;
-  var sh0='<table class="sctbl"><tr><th>Player</th><th>Front</th><th>Back</th><th>Total</th><th>'+
-    (thru?'Net Thru '+thru:'Net')+'</th></tr>';
-  for(var i=0;i<scSorted.length;i++){
-    var p=scSorted[i],played=sc.total[p]>0;
-    sh0+='<tr><td>'+p+'</td><td>'+(played?sc.front[p]:'–')+'</td><td>'+(played?sc.back[p]:'–')+'</td><td>'+(played?sc.total[p]:'–')+'</td><td class="scnet">'+(played?sc.net[p]:'–')+'</td></tr>';
+  var netLbl=thru?'Net Thru '+thru:'Net',sh0;
+  if(fullCard) sh0=fullScorecard(sc,scSorted,netLbl);
+  else {
+    sh0='<table class="sctbl"><tr><th>Player</th><th>Front</th><th>Back</th><th>Total</th><th>'+netLbl+'</th></tr>';
+    for(var i=0;i<scSorted.length;i++){
+      var p=scSorted[i],played=sc.total[p]>0;
+      sh0+='<tr><td>'+p+'</td><td>'+(played?sc.front[p]:'–')+'</td><td>'+(played?sc.back[p]:'–')+'</td><td>'+(played?sc.total[p]:'–')+'</td><td class="scnet">'+(played?fmtToPar(sc.net[p]):'–')+'</td></tr>';
+    }
+    sh0+='</table>';
   }
-  sh0+='</table>';
+  sh0+='<button class="fcbtn" id="fcbtn" data-action="fctoggle">'+(fullCard?'Hide Full Scorecard':'Show Full Scorecard')+'</button>';
   document.getElementById('smscore').innerHTML=sh0;
 
   // ---- Betting stats ----
@@ -1189,6 +1238,82 @@ document.getElementById('teepills').addEventListener('click',function(e){
 });
 document.getElementById('awayrating').addEventListener('input',function(){chkValid();updateLiveHandicaps();});
 document.getElementById('awayslope').addEventListener('input',function(){chkValid();updateLiveHandicaps();});
+
+// ---------------------------------------------------------------------------
+// Full scorecard (Round Summary)
+//
+// Every hole, with Out / In / Total / Net Thru. Scores on locked holes are
+// editable in place; an edit that would move money already settled (Banker
+// or Hammer) asks first and says exactly whose money moves and by how much.
+// Holes not yet locked are shown but edited on the hole card as usual; a dot
+// is a hole the player wasn't in play for.
+// ---------------------------------------------------------------------------
+
+var fullCard=false;
+
+function fullScorecard(sc,order,netLbl){
+  var hs=activeHoles();
+  function sumPar(a,b){var t=0;for(var i=a;i<b;i++)t+=hs[i].par;return t;}
+  var h='<div class="fcwrap"><table class="fctbl"><tr><th>Hole</th>';
+  for(var i=0;i<HOLES;i++){
+    h+='<th>'+(i+1)+'</th>';
+    if(i===8) h+='<th class="fcsum">Out</th>';
+  }
+  h+='<th class="fcsum">In</th><th class="fcsum">Tot</th><th>'+netLbl+'</th></tr>';
+
+  h+='<tr class="fcpar"><td>Par</td>';
+  for(var i=0;i<HOLES;i++){
+    h+='<td>'+hs[i].par+'</td>';
+    if(i===8) h+='<td class="fcsum">'+sumPar(0,9)+'</td>';
+  }
+  h+='<td class="fcsum">'+sumPar(9,18)+'</td><td class="fcsum">'+sumPar(0,18)+'</td><td></td></tr>';
+
+  for(var j=0;j<order.length;j++){
+    var p=order[j],played=sc.total[p]>0;
+    h+='<tr><td>'+p+'</td>';
+    for(var i=0;i<HOLES;i++){
+      var hl=G.holes[i],v=String(hl.strokes[p]==null?'':hl.strokes[p]);
+      if(!playerInHole(p,i)) h+='<td class="fcna">·</td>';
+      else if(hl.locked) h+='<td><input class="fcin'+(v&&Number(v)<hs[i].par?' bird':'')+'" type="number" inputmode="numeric" pattern="[0-9]*" '+
+        'min="1" max="'+MAX_SCORE+'" value="'+v+'" data-hi="'+i+'" data-p="'+p+'" aria-label="'+p+' hole '+(i+1)+'"></td>';
+      else h+='<td class="fcopen">'+v+'</td>';
+      if(i===8) h+='<td class="fcsum">'+(played?sc.front[p]:'–')+'</td>';
+    }
+    h+='<td class="fcsum">'+(played?sc.back[p]:'–')+'</td><td class="fcsum">'+(played?sc.total[p]:'–')+'</td>'+
+      '<td class="fcnet">'+(played?fmtToPar(sc.net[p]):'–')+'</td></tr>';
+  }
+  h+='</table></div><div class="fchint">Tap a score on a locked hole to fix it. If the change moves money already '+
+    'settled, you\'ll be asked first. Birdies or better are in green.</div><div id="fcmsg" class="sigridmsg"></div>';
+  return h;
+}
+
+function describeImpact(imp){
+  return imp.moved.map(function(q){
+    var bits=[],b0=imp.banker[0][q]||0,b1=imp.banker[1][q]||0,m0=imp.hammer[0][q]||0,m1=imp.hammer[1][q]||0;
+    if(b0!==b1) bits.push('Banker '+fmt(b0)+' → '+fmt(b1));
+    if(m0!==m1) bits.push('Hammer '+fmt(m0)+' → '+fmt(m1));
+    return '<b>'+q+'</b>: '+bits.join(' · ');
+  }).join('<br>');
+}
+
+document.addEventListener('change',function(e){
+  if(!e.target.classList.contains('fcin')) return;
+  var inp=e.target,hi=Number(inp.dataset.hi),p=inp.dataset.p;
+  var old=String(G.holes[hi].strokes[p]),v=inp.value.trim(),msg=document.getElementById('fcmsg');
+  if(v===old) return;
+  if(!isValidScore(v)){
+    inp.value=old;
+    if(msg){ msg.textContent='A score must be 1–'+MAX_SCORE+'. '+p+'\'s hole '+(hi+1)+' is still '+old+'.'; msg.className='sigridmsg bad'; }
+    return;
+  }
+  function apply(){ G.holes[hi].strokes[p]=v; saveRound(); renderSummary(); }
+  var imp=scoreEditImpact(hi,p,v);
+  if(!imp.moved.length){ apply(); return; }
+  showModal({title:'Change settled money?',
+    body:'Changing '+p+'\'s score on hole '+(hi+1)+' from '+old+' to '+v+' changes money that was already settled:<br><br>'+describeImpact(imp),
+    okLabel:'Change it',cancelLabel:'Keep '+old,danger:true,
+    onOk:apply,onCancel:function(){ inp.value=old; }});
+});
 
 // ---------------------------------------------------------------------------
 // Hammer UI

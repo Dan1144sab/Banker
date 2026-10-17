@@ -82,6 +82,9 @@ server strictly required). It loads `banker-logic.js` and runs assertions coveri
 - The settled-money guard: `totalsUnchanged`, `changedHandicaps`, and a
   `snapshotGame`/`restoreGame` round-trip that rolls back a save which would
   have turned a settled $10 loss into a push
+- Score entry: `cleanScoreEntry` (the 1-waits rule, 20+ refused, typing over),
+  `isValidScore`, `nextOpenScore` wrapping, and `scoreEditImpact` for both Banker
+  and Hammer money (and leaving `G` alone)
 - Persistence: `serializeRound`/`parseRound`/`loadRound` round-trip a mid-round
   Away game, and `parseRound` refuses corrupt/mismatched saves without throwing
 
@@ -98,7 +101,9 @@ hole and runs the whole mid-round editing flow (reopening setup, the locked cour
 toggle, adding a late arrival, marking a player out, validation, Cancel,
 renaming); the New Game confirm, autosave and resume; and the Hammer flow (setup
 toggle and team boxes, throw/accept/decline/undo, lock gating, presses, the
-leaderboard toggle, a departure ending the game, summary, resume). Add DOM-level
+leaderboard toggle, a departure ending the game, summary, resume); and score entry
+(auto-advance, the clear button) and the full scorecard's edit/warn/cancel flow.
+Add DOM-level
 coverage there for anything new on the setup screen, hole card or Hammer panel.
 
 Green summary ("N passed, 0 failed") = safe to commit. Failures show an expected/actual
@@ -204,11 +209,36 @@ pattern of testing the real wiring, not a re-implementation of it.
   things that reach back into locked holes, and the mid-round note says so.
 
 - **`calcScores()`** computes each player's front/back/total gross strokes (summed from
-  locked holes' `strokes` field) and their net score **through the holes played**:
-  gross minus the strokes actually received on those holes (`getStrokes`), not minus
-  a full 18-hole handicap — the Round Summary is viewable mid-round, and its column
-  header reads "Net Thru N" (N = locked holes; plain "Net" before any). This is
-  separate from `calcTotals()`, which sums the $ betting results, not strokes.
+  locked holes' `strokes` field) and their **net score to par through the holes
+  played**: per locked hole, gross − strokes off the player's **full** course handicap
+  (`fullStrokes()`, from `G.raw`) − par. The Round Summary shows it as +3 / −2 / E
+  under a "Net Thru N" header (N = locked holes; plain "Net" before any).
+
+  This is deliberately *not* `getStrokes()`: that nets to the group's low player
+  (who plays off 0) and is what the **bets** use; a score to par needs the real
+  handicap. A plus handicap gives strokes back on the easiest holes (SI 18 first).
+  Separate again from `calcTotals()`, which sums the $ betting results, not strokes.
+
+## Entering and fixing scores
+
+- **New holes default to a $5–$20 limit** (`DEFAULT_MAX_BET` in `initHoles`).
+- **Hole card auto-advance.** The score-box `input` handler runs the typed value
+  through `cleanScoreEntry()`: a 2–9 is complete; a **1 waits** (almost always the
+  start of 10–19 — a hole in one is rarer, and the scorer can tap on); 10–19 is
+  complete; anything over `MAX_SCORE` (19) keeps only the last digit typed, so typing
+  over a "4" with a "5" gives 5, never 45. On a complete score, focus moves to
+  `nextOpenScore()` — the next player in card order with no score, **wrapping to
+  the top** — or the keyboard is dismissed if all are in. The handler deliberately
+  does not re-render the card (that would drop focus); it only updates the
+  leaderboard, Hammer panel, lock button and the row's ✕ clear button.
+- **Full scorecard** (Round Summary → "Show Full Scorecard", `fullCard`): all 18
+  holes with Out / In / Tot / Net Thru, horizontally scrolling with the name column
+  sticky. Scores on **locked** holes are inputs; a `change` is validated
+  (`isValidScore`), then `scoreEditImpact()` (pure: totals before/after, `G`
+  untouched) decides — no settled Banker or Hammer money moves → apply silently;
+  otherwise a danger modal lists each player's before → after and only "Change it"
+  applies. Unlocked holes are read-only here (edit them on the hole card); "·" =
+  not in play that hole.
 
 ## Mid-round setup editing
 
