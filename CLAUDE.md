@@ -89,6 +89,9 @@ server strictly required). It loads `banker-logic.js` and runs assertions coveri
   and Hammer money (and leaving `G` alone)
 - Persistence: `serializeRound`/`parseRound`/`loadRound` round-trip a mid-round
   Away game, and `parseRound` refuses corrupt/mismatched saves without throwing
+- Away par and import: `buildAwayHoles` with pars, a par-3 press on an Away card,
+  `isValidParList`, `courseHdcp` using the tee's par, and `teeToAway`/`courseTees`/
+  `courseLabel` on good and broken API data
 
 Aim new tests at *branches*, not function names — the gaps that were worth closing were things
 like "`calcResult` skips a player who never wagered", "both strokes apply over
@@ -122,7 +125,10 @@ pattern of testing the real wiring, not a re-implementation of it.
   group, who always plays at 0 (scratch). Because `Rating − Par` is the same constant
   for every player on a given tee, it cancels out entirely when netting — so `Par`
   doesn't actually affect the net strokes used in play (see the "par term cancels out"
-  test). This is why `Away` course entry only needs Rating + Slope, not Par.
+  test). Par still matters for the **full** course handicap (`G.raw`, used for net
+  to par), so an Away tee carries its own par total: `activeTee()` adds
+  `par: sumPar(collectAwayPar())` and `courseHdcp()` uses `tee.par` when present,
+  else `COURSE.par` (the home `TEES` have none).
 - **Strokes per hole**: a player gets a stroke on a hole if their net course handicap
   *for that hole* (`chdcpAt(p,hi)`) is ≥ that hole's stroke index (SI), and a second
   stroke once it's ≥ `18 + SI`. See `getStrokes()`.
@@ -135,11 +141,16 @@ pattern of testing the real wiring, not a re-implementation of it.
 - **Per-hole par/SI come from `activeHoles()`, not `COURSE.holes` directly.**
   `COURSE.holes` is Rolling Green's hardcoded layout (par + stroke index per hole,
   verified against the club's card: `9,13,3,7,11,1,17,15,5,4,16,10,8,2,14,18,12,6`).
-  Away courses only collect Rating/Slope for the handicap formula, but stroke-index
-  allocation (`getStrokes`) still needs a real per-hole SI, so the Away section also
-  collects a full 18-hole SI sequence (validated as a permutation of 1–18 via
-  `isValidSISequence`) and `startGame()` builds `G.awayHoles` from it via
-  `buildAwayHoles()` (same pars as Rolling Green, custom SI). `activeHoles()` returns
+  The Away section collects Rating/Slope plus, per hole, a **par** (top box,
+  `.parinp`, 3–6, `isValidParList`) and a **stroke index** (bottom box, a
+  permutation of 1–18 via `isValidSISequence`); `startGame()` builds
+  `G.awayHoles` with `buildAwayHoles(si, par)`. Par drives the 3x press on par 3s
+  (`holeMult`), the Hammer natural birdie and net to par, which is why it is
+  required — Away holes used to borrow Rolling Green's pars, silently getting all
+  three wrong. (`buildAwayHoles(si)` with no par still falls back to Rolling
+  Green's, for old callers.) `#sigrid .siinp` matches **both** boxes — select
+  `.siinp:not(.parinp)` for SI. `getAwayCard()`/`setAwayCard()` read and fill the
+  whole Away section in one go (Cancel, Resume, import). `activeHoles()` returns
   `G.awayHoles` when set, else falls back to `COURSE.holes` — always read holes through
   `activeHoles()[hi]`, never `COURSE.holes[hi]` directly, or Away games will silently
   play with Rolling Green's stroke indexes.
@@ -257,6 +268,41 @@ pattern of testing the real wiring, not a re-implementation of it.
   otherwise a danger modal lists each player's before → after and only "Change it"
   applies. Unlocked holes are read-only here (edit them on the hole card); "·" =
   not in play that hole.
+
+## Importing an Away course (GolfCourseAPI)
+
+"Import a course & tees" in the Away section searches
+[GolfCourseAPI](https://golfcourseapi.com) (`GET /v1/search?search_query=`, then
+`GET /v1/courses/{id}`; bearer-token auth; CORS is open), lists the course's tees
+(men's then women's, 9-hole cards disabled — `courseTees()`), and a tapped tee fills
+rating, slope, par and SI via `teeToAway()` → `applyCard()`. Pure parsing is in
+`banker-logic.js` (`courseLabel`, `courseTees`, `teeToAway`); fetching and the panel
+(`renderImport()`, the `imp` state) are in `index.html`.
+
+- **The API key is in the code on purpose** (`GC_API_KEY` in `index.html`), and so is
+  public with the repo and the site. The user chose this: it's a free key (35 requests
+  a day; an import is two) for a small group, and it can be rotated at
+  golfcourseapi.com. Don't move it to per-device entry. With `GC_API_KEY` empty the
+  Import button is hidden.
+- **Any lookup failure falls back to entering the card by hand**: the panel says what
+  went wrong (key refused, limit used up, no signal, other) and offers "Enter it by
+  hand", which closes it and focuses Rating. A 429 also records the UTC day
+  (`banker.gclimit`), and for the rest of that day the Import button is disabled and
+  reads "Course lookups used up today — enter the card below".
+- **Imported data is a starting point.** Values land in the ordinary Away inputs and
+  go through the same validation; a missing par or bad SI comes through blank / as-is
+  so the grid highlights it, and `#awayname` says what to check. Don't "fix" bad data
+  silently.
+- **Imported tees are kept on the device** (`banker.courses`, newest first, max 8) and
+  shown as "Saved on this phone" chips that refill the card with no request — so a
+  course played before works with no key, no quota and no signal.
+- Import is hidden mid-round (`editMode`); manual edits to the Away card still work there.
+- Storage keys go through `localKey()`, so under `?store=banker.test` they become
+  `banker.test.gclimit` / `banker.test.courses` and tests never touch the real ones.
+  The DOM test stubs `fetch` with a synchronously-settling thenable (`syncP`) so the
+  import flow runs inside the suite's synchronous script.
+- `awayName` (course · tee) is saved with the round (`serializeRound` extra field) and
+  restored on Resume.
 
 ## Mid-round setup editing
 
@@ -397,8 +443,28 @@ Rules as implemented (agreed with the user):
   played have no Hammer at all** — `hammerHole()` is null before `from`, and
   `saveSetupEdit()` rolls back if Hammer totals (like Banker totals) move. The
   same window lets the scorer re-team, change the stake, or switch it off.
-  Once a Hammer hole is locked the section is read-only (`.lk`). The tee-off
+  Once a Hammer hole is locked the toggle and teams are read-only (`.lk`). The tee-off
   setup still uses row order (top half vs bottom half), not the picker.
+- **The base bet can change at any point in the round** — `#hmopts` stays visible in
+  edit mode whenever there is a Hammer. If Hammer holes are settled,
+  `saveSetupEdit()` first runs `hammerBaseImpact(newBase)` (pure: totals at each
+  base, `G` untouched) and, if any money moves, asks in a danger modal listing each
+  player's Hammer before → after; only "Change it" saves (it re-enters
+  `saveSetupEdit(true)`). The new base is applied **after** the settled-money guard,
+  since it is a deliberate change the guard would otherwise roll back.
+- **Fixing Hammer calls on a locked hole**: the panel on a locked Hammer hole has
+  "✏️ Fix Hammer calls" (`hfix`), which reopens the hole exactly like the hole card's
+  "✏️ Edit Hole" (`unlock`) — throws, accepts, declines and undo work again, and the
+  hole is locked again as usual. Users didn't find Edit Hole at the bottom of the
+  card when the thing to fix was in the Hammer panel.
+
+**Hammer throw success** (Round Summary → Betting Stats, `hammerThrowStats()`): per
+team, wins / throws over locked Hammer holes. A throw succeeds when the throwing
+team **won the hole** — the other team declined, or accepted and lost on the scores
+(the user's definition). A halved hole is not a success. Every throw on a hole
+counts, so a hammer thrown back and forth scores for both teams. Throws are
+recorded per team, not per player, so this can't be a per-player stat without the
+throw buttons asking who threw.
 
 Teams are stored by name, so `renamePlayers()` remaps `G.hammer.teams`, and
 `snapshotGame()`/`restoreGame()` and `serializeRound()`/`loadRound()` all carry

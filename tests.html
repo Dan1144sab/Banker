@@ -190,13 +190,79 @@ test('activeHoles falls back to COURSE.holes until a valid away SI sequence is s
   assertEqual(activeHoles(),COURSE.holes,'away selected but no SI entered yet -> fall back rather than break getStrokes');
 });
 
-test('buildAwayHoles keeps Rolling Green pars but swaps in the entered SI sequence',function(){
+test('buildAwayHoles uses the entered par and SI for every hole',function(){
   var si=[18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1];
-  var holes=buildAwayHoles(si);
+  var par=[3,4,5,4,4,3,4,5,4,4,4,3,5,4,4,3,4,5];
+  var holes=buildAwayHoles(si,par);
   assertEqual(holes.length,HOLES);
-  assertEqual(holes[0].par,COURSE.holes[0].par,'par still comes from the Rolling Green layout');
+  assertEqual(holes[0].par,3,'Rolling Green hole 1 is a par 4');
   assertEqual(holes[0].si,18);
-  assertEqual(holes[17].si,1);
+  assertEqual(holes[17].si,1); assertEqual(holes[17].par,5);
+  assertEqual(buildAwayHoles(si)[0].par,COURSE.holes[0].par,'no par list (an old caller) falls back to Rolling Green');
+});
+
+test('an Away par 3 is a 3x press, and a Rolling Green par 3 is not when the Away hole is a 4',function(){
+  var si=[18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1];
+  var par=[3,4,5,4,4,4,4,5,4,4,4,3,5,4,4,3,4,5]; // RG hole 5 and 7 are par 3s; here they're 4s
+  G.course='away'; G.awayHoles=buildAwayHoles(si,par);
+  assertEqual(holeMult(0),3); assertEqual(holeMult(4),2); assertEqual(holeMult(6),2);
+  G.course='home'; G.awayHoles=null;
+  assertEqual(holeMult(0),2); assertEqual(holeMult(4),3);
+});
+
+test('Away pars are 3-6, all 18 of them',function(){
+  assertTrue(isValidParList([3,4,5,4,4,3,4,5,4,4,4,3,5,4,4,3,4,6]));
+  assertTrue(!isValidParList([3,4,5,4,4,3,4,5,4,4,4,3,5,4,4,3,4]),'17 holes');
+  assertTrue(!isValidParList([2,4,5,4,4,3,4,5,4,4,4,3,5,4,4,3,4,5]),'a par 2');
+  assertTrue(!isValidParList([null,4,5,4,4,3,4,5,4,4,4,3,5,4,4,3,4,5]),'a blank');
+  assertEqual(sumPar([4,4,3]),11);
+});
+
+test('course handicap uses the tee\'s own par when it has one',function(){
+  assertEqual(courseHdcp(10,{rating:70.1,slope:125}),Math.round(10*125/113+70.1-72),'no par: Rolling Green\'s 72');
+  assertEqual(courseHdcp(10,{rating:70.1,slope:125,par:70}),Math.round(10*125/113+0.1),'par 70 course');
+  assertEqual(courseHdcp(10,{rating:70.1,slope:125,par:70},72),Math.round(10*125/113-1.9),'an explicit par still wins');
+});
+
+// ---- Course import ----
+function apiTee(name,over){
+  var holes=[];
+  for(var i=0;i<18;i++) holes.push({par:i%6===0?3:i%6===3?5:4,yardage:400,handicap:i+1});
+  return Object.assign({tee_name:name,course_rating:71.2,slope_rating:131,total_yards:6400,number_of_holes:18,par_total:72,holes:holes},over||{});
+}
+
+test('teeToAway turns an API tee into rating, slope, par and SI',function(){
+  var a=teeToAway(apiTee('Blue'));
+  assertEqual(a.rating,71.2); assertEqual(a.slope,131);
+  assertEqual(a.par.slice(0,4),[3,4,4,5]); assertEqual(a.si[0],1); assertEqual(a.si[17],18);
+  assertEqual(a.problems,[]);
+});
+
+test('teeToAway flags bad or missing data instead of inventing it',function(){
+  var t=apiTee('Red');
+  t.holes[2].handicap=1;          // a repeat
+  t.holes[5].par=null;            // missing par
+  t.slope_rating=0;
+  var a=teeToAway(t);
+  assertEqual(a.par[5],null,'missing par stays blank for the scorer to fill');
+  assertEqual(a.si[2],1,'a repeated SI comes through so the Away grid highlights it');
+  assertEqual(a.slope,null);
+  assertEqual(a.problems,['rating/slope','par','stroke index']);
+  assertEqual(teeToAway(apiTee('Nine',{holes:apiTee('x').holes.slice(0,9)})),null,'a 9-hole tee cannot be used');
+});
+
+test('courseTees lists men\'s tees then women\'s, marking which are 18-hole cards',function(){
+  var c={tees:{female:[apiTee('Red')],male:[apiTee('Blue'),apiTee('Nine',{holes:[{par:4}]})]}};
+  var t=courseTees(c);
+  assertEqual(t.map(function(x){return x.tee.tee_name+x.tag+(x.eighteen?'':'!');}),['BlueM','NineM!','RedW']);
+  assertEqual(courseTees({}),[]);
+});
+
+test('courseLabel names the club and course once, with the town',function(){
+  assertEqual(courseLabel({club_name:'Pebble Beach',course_name:'Pebble Beach',location:{city:'Pebble Beach',state:'CA'}}),
+    {name:'Pebble Beach',where:'Pebble Beach, CA'});
+  assertEqual(courseLabel({club_name:'Pinehurst Resort',course_name:'No. 2',location:{}}).name,'Pinehurst Resort — No. 2');
+  assertEqual(courseLabel({}).name,'Unnamed course');
 });
 
 test('getStrokes reads the away SI sequence once G.awayHoles is set, not Rolling Green\'s',function(){
@@ -957,6 +1023,37 @@ test('a team member leaving ends the Hammer from that hole; holes before it stil
   hammerDone();
 });
 
+test('a Hammer throw succeeds when the throwing team wins the hole — by a decline or on the scores',function(){
+  hammerFixture();
+  // hole 1: Team 1 throws, accepted, Team 1 wins on the scores        -> T1 1/1
+  G.hammer.log[0]=[{t:'throw',team:0},{t:'accept'}]; hscore(0,4,5,5,5); G.holes[0].locked=true;
+  // hole 2: Team 2 throws, Team 1 declines                            -> T2 1/1
+  G.hammer.log[1]=[{t:'throw',team:1},{t:'decline'}]; G.holes[1].locked=true;
+  // hole 3: T1 throws, accepted; T2 throws back, accepted; T2 wins     -> T1 0/1, T2 1/1
+  G.hammer.log[2]=[{t:'throw',team:0},{t:'accept'},{t:'throw',team:1},{t:'accept'}]; hscore(2,5,5,4,5); G.holes[2].locked=true;
+  // hole 4: T2 throws, accepted, halved                               -> T2 0/1
+  G.hammer.log[3]=[{t:'throw',team:1},{t:'accept'}]; hscore(3,4,5,4,5); G.holes[3].locked=true;
+  // hole 5: a throw on a hole not yet locked doesn't count
+  G.hammer.log[4]=[{t:'throw',team:0}];
+  assertEqual(hammerThrowStats(),[{throws:2,wins:1},{throws:3,wins:2}]);
+  G.hammer=null;
+  assertEqual(hammerThrowStats(),[{throws:0,wins:0},{throws:0,wins:0}],'no Hammer, no stats');
+  hammerDone();
+});
+
+test('hammerBaseImpact scales settled Hammer money and leaves G alone',function(){
+  hammerFixture();
+  hscore(0,4,5,5,5); G.holes[0].locked=true;   // Team 1 wins $10
+  hscore(1,6,6,6,6); G.holes[1].locked=true;   // halved
+  var r=hammerBaseImpact(25);
+  assertEqual(r.before,{A:10,B:10,C:-10,D:-10}); assertEqual(r.after,{A:25,B:25,C:-25,D:-25});
+  assertEqual(r.moved,['A','B','C','D']);
+  assertEqual(G.hammer.base,10,'G untouched');
+  G.holes[0].locked=false;
+  assertEqual(hammerBaseImpact(25).moved,[],'only halved holes settled: nothing moves');
+  hammerDone();
+});
+
 test('Hammer started mid-round leaves the holes already played alone',function(){
   hammerFixture();
   G.hammer=null;
@@ -1265,10 +1362,11 @@ document.title=(fail?'✗ FAIL':'✓ PASS')+' — Banker Logic Tests';
 
       // ---- Away course stroke-index input ----
       fd.querySelector('[data-course="away"]').click();
-      var siInputs=fd.querySelectorAll('#sigrid .siinp');
-      addResult('selecting Away reveals 18 stroke-index inputs',
-        siInputs.length===18,
-        'found '+siInputs.length);
+      var siInputs=fd.querySelectorAll('#sigrid .siinp:not(.parinp)'),parInputs=fd.querySelectorAll('#sigrid .parinp');
+      addResult('selecting Away reveals 18 par and 18 stroke-index inputs',
+        siInputs.length===18&&parInputs.length===18,
+        'found '+siInputs.length+' SI, '+parInputs.length+' par');
+      var awayPar=[3,4,5,4,4,3,4,5,5,4,4,3,5,4,4,3,4,5]; // par 73
 
       var dup=[1,1,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18];
       for(var i=0;i<18;i++){siInputs[i].value=dup[i];siInputs[i].dispatchEvent(new fw.Event('input'));}
@@ -1278,6 +1376,15 @@ document.title=(fail?'✗ FAIL':'✓ PASS')+' — Banker Logic Tests';
 
       var good=[18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1];
       for(var i=0;i<18;i++){siInputs[i].value=good[i];siInputs[i].dispatchEvent(new fw.Event('input'));}
+      addResult('a valid SI but no pars still keeps Tee It Up disabled',
+        fd.getElementById('teeup').disabled===true&&/par 0\/18/.test(fd.getElementById('sigridmsg').textContent),
+        fd.getElementById('sigridmsg').textContent);
+      parInputs[1].value='2'; parInputs[1].dispatchEvent(new fw.Event('input'));
+      addResult('a par outside 3-6 is flagged',parInputs[1].classList.contains('bad')
+        &&/par must be 3–6/.test(fd.getElementById('sigridmsg').textContent),fd.getElementById('sigridmsg').textContent);
+      for(var i=0;i<18;i++){parInputs[i].value=awayPar[i];parInputs[i].dispatchEvent(new fw.Event('input'));}
+      addResult('with every par in, the card is valid and shows its total',
+        /Valid card · par 73/.test(fd.getElementById('sigridmsg').textContent),fd.getElementById('sigridmsg').textContent);
       fd.getElementById('awayrating').value='70.1';
       fd.getElementById('awayrating').dispatchEvent(new fw.Event('input'));
       fd.getElementById('awayslope').value='125';
@@ -1305,6 +1412,11 @@ document.title=(fail?'✗ FAIL':'✓ PASS')+' — Banker Logic Tests';
       addResult('starting a game with a valid away SI sequence wires it into the live hole card',
         fw.activeHoles()[0].si===18,
         'activeHoles()[0].si='+fw.activeHoles()[0].si+' (Rolling Green would be 9)');
+      addResult('and the Away pars: hole 1 is a par 3 (3x press), hole 5 a par 4',
+        fw.activeHoles()[0].par===3&&fw.holeMult(0)===3&&fw.activeHoles()[4].par===4&&fw.holeMult(4)===2,
+        'pars='+fw.activeHoles().map(function(h){return h.par;}).join(','));
+      addResult('course handicaps use the Away card\'s par 73, not Rolling Green\'s 72',
+        fw.G.raw.Garrett===Math.round(10*125/113+70.1-73),'raw='+fw.G.raw.Garrett);
 
       // ---- Single banker-press-all button ----
       var hole=fw.G.holes[0];
@@ -1879,6 +1991,40 @@ document.title=(fail?'✗ FAIL':'✓ PASS')+' — Banker Logic Tests';
         'sub="'+fd.getElementById('hmsub').textContent+'"');
       fd.getElementById('cancelsetup').click();
 
+      // ---- Hammer: the stake can change after holes are settled, with a warning ----
+      var hb0=fw.G.hammer.base,ann0=fw.hammerTotals().Ann,baseIn=fd.getElementById('hmbase');
+      fd.getElementById('editbtn').click();
+      addResult('mid-round the Hammer bet is still editable',
+        fd.getElementById('hmopts').style.display==='flex'&&baseIn.value===String(hb0)&&!baseIn.disabled,'base='+baseIn.value);
+      baseIn.value=String(hb0*2); baseIn.dispatchEvent(new fw.Event('input'));
+      fd.getElementById('teeup').click();
+      addResult('a new bet that moves settled Hammer money asks first, naming the money',
+        modalOn()&&/Change settled Hammer money/.test(fd.getElementById('mtitle').textContent)
+        &&new RegExp('Ann: Hammer '+fw.fmt(ann0).replace(/[$+]/g,'\\$&')+' → '+fw.fmt(ann0*2).replace(/[$+]/g,'\\$&')).test(fd.getElementById('mbody').textContent),
+        fd.getElementById('mbody').textContent);
+      fd.getElementById('mcancel').click();
+      addResult('keeping the old bet changes nothing',fw.G.hammer.base===hb0&&baseIn.value===String(hb0)&&fw.editMode,'');
+      baseIn.value=String(hb0*2); baseIn.dispatchEvent(new fw.Event('input'));
+      fd.getElementById('teeup').click(); fd.getElementById('mok').click();
+      addResult('"Change it" saves the new bet, and the settled holes pay at it',
+        fw.G.hammer.base===hb0*2&&fw.hammerTotals().Ann===ann0*2&&!fw.editMode,'Ann='+fw.hammerTotals().Ann);
+      fd.getElementById('editbtn').click();
+      baseIn.value=String(hb0); baseIn.dispatchEvent(new fw.Event('input'));
+      fd.getElementById('teeup').click(); fd.getElementById('mok').click();
+      addResult('and it can be put back',fw.G.hammer.base===hb0&&fw.hammerTotals().Ann===ann0,'');
+
+      // ---- Hammer: fixing the calls on a locked hole ----
+      var actHi=fw.G.active; fw.G.active=0; fw.renderGame();
+      var hfix=fd.querySelector('#hmbar [data-action="hfix"]');
+      addResult('a locked Hammer hole offers Fix Hammer calls',!!hfix&&/Fix Hammer calls/.test(hfix.textContent),'');
+      hfix.click();
+      addResult('which reopens the hole with the throw buttons back',
+        !fw.G.holes[0].locked&&fd.querySelectorAll('#hmbar [data-action="hthrow"]').length===2
+        &&!!fd.querySelector('#hcard [data-action="lock"]'),'locked='+fw.G.holes[0].locked);
+      fd.querySelector('#hcard [data-action="lock"]').click();
+      addResult('and locking it again leaves the money as it was',fw.G.holes[0].locked&&fw.hammerTotals().Ann===ann0,'');
+      fw.G.active=actHi; fw.renderGame();
+
       // ---- Hammer: a team member leaving ends it ----
       fd.getElementById('editbtn').click();
       var benCb=[].filter.call(fd.querySelectorAll('#ninputs .prow'),function(r){return r.dataset.player==='Ben';})[0].querySelector('input[type=checkbox]');
@@ -1917,6 +2063,12 @@ document.title=(fail?'✗ FAIL':'✓ PASS')+' — Banker Logic Tests';
         JSON.stringify(suTot)===JSON.stringify(wantTop),'shown='+suTot.join(',')+' want='+wantTop.join(','));
       addResult('a player not on the Hammer shows a dash for it',
         eveRow&&eveRow.children[3].textContent==='–','Eve row='+(eveRow&&eveRow.textContent));
+      var tsRow=[].filter.call(fd.querySelectorAll('#smstats .strow'),function(r){return /Hammer throw success/.test(r.textContent);})[0];
+      var tsW=fw.hammerThrowStats();
+      addResult('Betting Stats shows each team\'s Hammer throw success',
+        !!tsRow&&tsW[0].throws>0&&new RegExp('Ann & Ben\\s+'+tsW[0].wins+'/'+tsW[0].throws).test(tsRow.textContent)
+        &&/Cal & Dee/.test(tsRow.textContent),
+        (tsRow&&tsRow.textContent)+' stats='+JSON.stringify(tsW));
       fd.getElementById('backbtn').click();
       var wantHm=JSON.stringify(fw.G.hammer);
       fw.G.hammer=null; fw.gameLive=false;
@@ -2073,13 +2225,108 @@ document.title=(fail?'✗ FAIL':'✓ PASS')+' — Banker Logic Tests';
       fd.getElementById('editbtn').click();
       addResult('once a Hammer hole is locked the teams are fixed, and the card says where it started',
         hmt2.classList.contains('lk')&&pick.style.display==='none'
-        &&/P1 & P2 vs P3 & P4 · \$20\/man from hole 2/.test(fd.getElementById('hmsub').textContent),
+        &&/P1 & P2 vs P3 & P4 · from hole 2/.test(fd.getElementById('hmsub').textContent)
+        &&fd.getElementById('hmopts').style.display==='flex'&&fd.getElementById('hmbase').value==='20',
         'sub="'+fd.getElementById('hmsub').textContent+'"');
       fd.getElementById('cancelsetup').click();
       fd.getElementById('sumbtn').click();
       addResult('the Round Summary says Hammer started on hole 2',/from H2/.test(fd.getElementById('smcard').textContent),
         fd.getElementById('smcard').textContent.slice(0,120));
       fw.gameLive=false; fw.localStorage.removeItem(KEY);
+
+      // ---- Course import ----
+      // fetch is stubbed with a thenable that settles synchronously, so the
+      // import flow can be driven in this synchronous script.
+      function syncP(v,err){ return {then:function(f,g){
+        try{ var r; if(err){ if(!g) return syncP(null,err); r=g(err); } else { if(!f) return syncP(v); r=f(v); }
+          return r&&typeof r.then==='function'?r:syncP(r); }catch(x){ return syncP(null,x); } }}; }
+      var calls=[],status=200;
+      var apiCourse={id:'7k2m9qb4',club_name:'Lakeside CC',course_name:'Lakeside CC',location:{city:'Lakeside',state:'OH'},
+        tees:{male:[apiTee('Blue',{course_rating:72.4,slope_rating:133}),apiTee('Nine',{holes:apiTee('x').holes.slice(0,9)})],female:[apiTee('Red')]}};
+      var realFetch=fw.fetch;
+      fw.fetch=function(url,opt){
+        calls.push({url:url,auth:opt&&opt.headers&&opt.headers.Authorization});
+        if(status!==200) return syncP({ok:false,status:status});
+        var body=/search\?/.test(url)?{courses:[{id:apiCourse.id,club_name:apiCourse.club_name,course_name:apiCourse.course_name,location:apiCourse.location,tees:{male:2,female:1}}]}
+          :{course:apiCourse};
+        return syncP({ok:true,status:200,json:function(){return syncP(body);}});
+      };
+      fw.showScreen('summary');
+      fd.getElementById('newbtn').click();
+      if(modalOn()) fd.getElementById('mok').click();
+      fd.querySelector('[data-course="away"]').click();
+      setAwayBlank();
+      function setAwayBlank(){ fw.setAwayCard({rating:'',slope:'',si:null,par:null,name:''}); }
+      var panel=fd.getElementById('imppanel'),realKey=fw.GC_API_KEY;
+      fw.GC_API_KEY=''; fw.renderImport();
+      addResult('with no API key in the app, there is no Import button — just the card to fill in',
+        fd.getElementById('impopen').style.display==='none'&&fd.querySelectorAll('#sigrid .siinp').length===36,'');
+      fw.GC_API_KEY='test-key-123'; fw.renderImport();
+      addResult('Away setup has an Import button',fd.getElementById('impopen').style.display!=='none'&&panel.style.display==='none','');
+      fd.getElementById('impopen').click();
+      addResult('Import goes straight to the search — no key to enter',!!fd.getElementById('impq')&&!/key/i.test(panel.textContent),
+        panel.textContent.slice(0,120));
+      fd.getElementById('impq').value='lakeside';
+      panel.querySelector('[data-imp="search"]').click();
+      addResult('searching calls GolfCourseAPI with the key as a bearer token, and lists the matches',
+        calls.length===1&&/v1\/search\?search_query=lakeside/.test(calls[0].url)&&calls[0].auth==='Bearer test-key-123'
+        &&panel.querySelectorAll('[data-imp="course"]').length===1&&/Lakeside CC/.test(panel.textContent)&&/Lakeside, OH/.test(panel.textContent),
+        JSON.stringify(calls));
+      panel.querySelector('[data-imp="course"]').click();
+      var teeBtns=panel.querySelectorAll('[data-imp="tee"]');
+      addResult('picking a course lists its tees, with 9-hole cards greyed out',
+        /v1\/courses\/7k2m9qb4/.test(calls[1].url)&&teeBtns.length===3&&/Blue \(Men\)/.test(teeBtns[0].textContent)
+        &&/72.4 \/ 133/.test(teeBtns[0].textContent)&&teeBtns[1].disabled&&/Red \(Women\)/.test(teeBtns[2].textContent),
+        [].map.call(teeBtns,function(b){return b.textContent;}).join(' | '));
+      teeBtns[0].click();
+      var card=fw.getAwayCard();
+      addResult('picking a tee fills rating, slope, par and SI, and names the course',
+        card.rating==='72.4'&&card.slope==='133'&&card.par.join()===apiTee('x').holes.map(function(h){return h.par;}).join()
+        &&card.si[0]===1&&card.si[17]===18&&panel.style.display==='none'
+        &&fd.getElementById('awayname').textContent==='Lakeside CC · Blue (M)'
+        &&/Valid card/.test(fd.getElementById('sigridmsg').textContent),
+        JSON.stringify(card)+' name='+fd.getElementById('awayname').textContent);
+      var chipsI=fd.querySelectorAll('#imprecent [data-imp="saved"]');
+      addResult('the imported tee is saved on this phone',chipsI.length===1&&chipsI[0].textContent==='Lakeside CC · Blue (M)','');
+      setAwayBlank();
+      var nCalls=calls.length;
+      chipsI[0].click();
+      addResult('tapping a saved course refills the card with no request',
+        calls.length===nCalls&&fw.getAwayCard().rating==='72.4'&&fw.getAwayCard().si[17]===18,'calls='+calls.length);
+      fd.getElementById('impopen').click();
+      fd.getElementById('impq').value='lakeside'; status=401;
+      panel.querySelector('[data-imp="search"]').click();
+      addResult('a refused key points the scorer at entering the card by hand',
+        /key was refused/.test(panel.textContent)&&/by hand/.test(panel.textContent)&&!!panel.querySelector('[data-imp="byhand"]'),
+        panel.textContent.slice(0,200));
+      status=500; panel.querySelector('[data-imp="search"]').click();
+      addResult('so does any other failure',/had a problem \(HTTP 500\)/.test(panel.textContent)&&/by hand/.test(panel.textContent),'');
+      status=429; panel.querySelector('[data-imp="search"]').click();
+      addResult('a used-up daily limit says so',/used up/.test(panel.textContent)&&/by hand/.test(panel.textContent),'');
+      panel.querySelector('[data-imp="byhand"]').click();
+      var ib=fd.getElementById('impopen');
+      addResult('Enter it by hand closes the lookup and puts the cursor in Rating',
+        panel.style.display==='none'&&fd.activeElement===fd.getElementById('awayrating'),'');
+      addResult('for the rest of the day the Import button says lookups are used up, instead of failing again',
+        ib.disabled&&/used up today/.test(ib.textContent)&&fw.localStorage.getItem('banker.test.gclimit')===new Date().toISOString().slice(0,10),
+        ib.textContent);
+      addResult('saved courses still work then',fd.querySelectorAll('#imprecent [data-imp="saved"]').length===1,'');
+      fw.localStorage.setItem('banker.test.gclimit','2000-01-01'); fw.renderImport();
+      addResult('and the next day Import is back',!ib.disabled&&ib.textContent==='Import a course & tees','');
+      var bad=apiTee('Gaps'); bad.holes[4].par=null; bad.holes[6].handicap=1;
+      apiCourse.tees={male:[bad]}; status=200;
+      fd.getElementById('impopen').click(); fd.getElementById('impq').value='lakeside';
+      panel.querySelector('[data-imp="search"]').click();
+      panel.querySelector('[data-imp="course"]').click();
+      panel.querySelector('[data-imp="tee"]').click();
+      addResult('an incomplete card is imported anyway, with the gaps flagged for the scorer',
+        /missing or has bad par, stroke index/.test(fd.getElementById('awayname').textContent)
+        &&fd.getElementById('teeup').disabled&&fd.querySelectorAll('#sigrid .bad').length>=2,
+        fd.getElementById('awayname').textContent);
+      fw.fetch=realFetch; fw.GC_API_KEY=realKey;
+      fw.localStorage.removeItem('banker.test.gclimit'); fw.localStorage.removeItem('banker.test.courses');
+      setAwayBlank();
+      fd.querySelector('[data-course="home"]').click();
     }catch(e){
       addResult('layout tests threw an error',false,e.message);
     }

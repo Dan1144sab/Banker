@@ -69,6 +69,27 @@
     .siinp{width:100%;min-width:0;padding:6px 2px;border:2px solid var(--border);border-radius:8px;font-size:14px;text-align:center;background:white;color:var(--txt);-webkit-appearance:none;font-family:'DM Sans',sans-serif}
     .siinp:focus{outline:none;border-color:var(--green)}
     .siinp.bad{border-color:var(--loss)}
+    .siinp.parinp{background:#e8f1ea;font-weight:700;color:var(--green)}
+    .impbtn{width:100%;padding:11px;border-radius:12px;border:2px solid var(--green);background:white;color:var(--green);font-family:'DM Sans',sans-serif;font-weight:700;font-size:14px;cursor:pointer}
+    .impbtn:disabled{border-color:var(--border);color:var(--muted);cursor:default;font-weight:600}
+    .awayname{font-size:13px;font-weight:700;color:var(--green);text-align:center;margin-top:8px;overflow-wrap:anywhere}
+    .awayname small{display:block;font-weight:500;color:var(--loss);margin-top:2px}
+    .imprecent{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+    .imprecent .implbl{width:100%;font-size:10px;font-weight:700;letter-spacing:1.5px;color:var(--muted)}
+    .impchip{border:1.5px solid var(--border);background:white;border-radius:16px;padding:6px 11px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;color:var(--txt);cursor:pointer;max-width:100%;overflow-wrap:anywhere;text-align:left}
+    .imppanel{margin-top:10px;border:2px solid var(--border);border-radius:14px;padding:12px;background:white}
+    .imppanel .prow{margin-bottom:8px}
+    .impgo{flex-shrink:0;padding:0 14px;border-radius:10px;border:none;background:var(--green);color:white;font-family:'DM Sans',sans-serif;font-weight:700;font-size:14px;cursor:pointer}
+    .impgo:disabled{opacity:0.5}
+    .impres{display:block;width:100%;text-align:left;border:1.5px solid var(--border);background:white;border-radius:10px;padding:9px 11px;margin-top:6px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:700;color:var(--txt);cursor:pointer;overflow-wrap:anywhere}
+    .impres small{display:block;font-weight:500;font-size:12px;color:var(--muted);margin-top:1px}
+    .impres:disabled{opacity:0.45;cursor:default}
+    .impmsg{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.4}
+    .impmsg.bad{color:var(--loss);font-weight:600}
+    .implinks{display:flex;justify-content:space-between;margin-top:10px}
+    .implink{background:none;border:none;padding:4px 0;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;color:var(--green);text-decoration:underline;cursor:pointer}
+    .sileg{display:flex;justify-content:center;gap:14px;font-size:11px;color:var(--muted);margin-bottom:6px}
+    .sileg i{display:inline-block;width:12px;height:12px;border:2px solid var(--border);border-radius:3px;vertical-align:-2px;margin-right:4px}
     .sigridmsg{font-size:11px;color:var(--muted);margin-top:6px;text-align:center}
     .sigridmsg.bad{color:var(--loss)}
     .sigridmsg.ok{color:var(--win)}
@@ -333,12 +354,19 @@
       <div id="teeinfo" style="font-size:12px;color:var(--muted);margin-top:6px;text-align:center"></div>
     </div>
     <div id="awaysection" style="display:none">
-      <label class="flbl">Rating &amp; Slope</label>
+      <div id="impwrap">
+        <button type="button" class="impbtn" id="impopen">Import a course &amp; tees</button>
+        <div id="imprecent" class="imprecent"></div>
+        <div id="imppanel" class="imppanel" style="display:none"></div>
+      </div>
+      <div id="awayname" class="awayname"></div>
+      <label class="flbl" style="margin-top:10px">Rating &amp; Slope</label>
       <div class="prow">
         <input type="number" step="0.1" class="ni" id="awayrating" placeholder="Rating">
         <input type="number" step="1" class="ni" id="awayslope" placeholder="Slope">
       </div>
-      <label class="flbl" style="margin-top:10px">Stroke Index (hole 1–18)</label>
+      <label class="flbl" style="margin-top:10px">Par &amp; Stroke Index (hole 1–18)</label>
+      <div class="sileg"><span><i style="background:#e8f1ea"></i>Par (top)</span><span><i style="background:white"></i>Stroke index (bottom)</span></div>
       <div class="sigrid" id="sigrid"></div>
       <div id="sigridmsg" class="sigridmsg"></div>
     </div>
@@ -412,11 +440,15 @@
 
 <script src="banker-logic.js"></script>
 <script>
+// An Away tee's par is the total of the card entered for it — until all 18
+// are entered, Rolling Green's, so the live Hcp column has something to show.
 function activeTee(){
   if(G.course==='away'){
     var r=parseFloat(document.getElementById('awayrating').value),
-        s=parseFloat(document.getElementById('awayslope').value);
-    return {rating:isNaN(r)?COURSE.rating:r, slope:isNaN(s)?COURSE.slope:s};
+        s=parseFloat(document.getElementById('awayslope').value),
+        par=collectAwayPar();
+    return {rating:isNaN(r)?COURSE.rating:r, slope:isNaN(s)?COURSE.slope:s,
+      par:isValidParList(par)?sumPar(par):COURSE.par};
   }
   return TEES[G.tee];
 }
@@ -426,7 +458,7 @@ function renderCourseUI(){
   for(var i=0;i<btns.length;i++) btns[i].classList.toggle('on',btns[i].dataset.course===G.course);
   document.getElementById('teesection').style.display=G.course==='away'?'none':'block';
   document.getElementById('awaysection').style.display=G.course==='away'?'block':'none';
-  renderTeeInfo();
+  renderTeeInfo(); renderImport();
 }
 
 function renderTeeInfo(){
@@ -466,6 +498,7 @@ function fmtToPar(n){
   return n===0?'E':(n>0?'+'+n:'-'+Math.abs(n));
 }
 
+// Each hole's cell holds its par (top) and stroke index (bottom).
 function buildSIInputs(){
   var c=document.getElementById('sigrid');
   c.innerHTML='';
@@ -474,46 +507,69 @@ function buildSIInputs(){
     cell.className='sicell';
     var lbl=document.createElement('span');
     lbl.className='sih'; lbl.textContent='H'+(i+1);
-    var inp=document.createElement('input');
-    inp.type='number'; inp.className='siinp'; inp.min='1'; inp.max='18'; inp.step='1';
-    inp.inputMode='numeric'; inp.dataset.hi=i;
-    inp.addEventListener('input',function(){renderSIStatus();chkValid();});
-    cell.appendChild(lbl); cell.appendChild(inp);
+    cell.appendChild(lbl);
+    [['parinp','3','6','Par'],['','1','18','SI']].forEach(function(k){
+      var inp=document.createElement('input');
+      inp.type='number'; inp.className='siinp'+(k[0]?' '+k[0]:''); inp.min=k[1]; inp.max=k[2]; inp.step='1';
+      inp.inputMode='numeric'; inp.dataset.hi=i; inp.placeholder=k[3];
+      inp.setAttribute('aria-label','Hole '+(i+1)+' '+(k[0]?'par':'stroke index'));
+      inp.addEventListener('input',function(){renderSIStatus();chkValid();updateLiveHandicaps();});
+      cell.appendChild(inp);
+    });
     c.appendChild(cell);
   }
 }
 
-function collectAwaySI(){
-  var inputs=document.querySelectorAll('#sigrid .siinp');
-  var arr=[];
-  for(var i=0;i<inputs.length;i++){
-    var v=parseInt(inputs[i].value,10);
-    arr.push(isNaN(v)?null:v);
+function readInts(sel){
+  return Array.prototype.map.call(document.querySelectorAll(sel),function(inp){
+    var v=parseInt(inp.value,10); return isNaN(v)?null:v;
+  });
+}
+function collectAwaySI(){ return readInts('#sigrid .siinp:not(.parinp)'); }
+function collectAwayPar(){ return readInts('#sigrid .parinp'); }
+
+// Everything the Away section holds, so it can be snapshotted, restored
+// (Cancel, Resume) and filled in one go (import).
+function getAwayCard(){
+  return {rating:document.getElementById('awayrating').value,slope:document.getElementById('awayslope').value,
+    si:collectAwaySI(),par:collectAwayPar(),name:awayName};
+}
+function setAwayCard(o){
+  document.getElementById('awayrating').value=o.rating==null?'':o.rating;
+  document.getElementById('awayslope').value=o.slope==null?'':o.slope;
+  var si=document.querySelectorAll('#sigrid .siinp:not(.parinp)'),par=document.querySelectorAll('#sigrid .parinp');
+  for(var i=0;i<HOLES;i++){
+    si[i].value=o.si&&o.si[i]!=null?o.si[i]:'';
+    par[i].value=o.par&&o.par[i]!=null?o.par[i]:'';
   }
-  return arr;
+  awayName=o.name||'';
+  renderAwayName(); renderSIStatus();
 }
 
-// Live per-box validation: flags out-of-range or duplicate SI values as soon
-// as they're typed, not just once all 18 boxes are filled.
+// Live per-box validation: flags an out-of-range par, or an out-of-range or
+// duplicate SI, as soon as it's typed, not just once all 18 are filled.
 function renderSIStatus(){
   var msg=document.getElementById('sigridmsg');
-  var inputs=document.querySelectorAll('#sigrid .siinp');
-  var si=collectAwaySI();
+  var inputs=document.querySelectorAll('#sigrid .siinp:not(.parinp)'),pinputs=document.querySelectorAll('#sigrid .parinp');
+  var si=collectAwaySI(),par=collectAwayPar();
   var counts={};
   for(var i=0;i<si.length;i++) if(si[i]!=null) counts[si[i]]=(counts[si[i]]||0)+1;
-  var anyBad=false;
+  var anyBad=false,parBad=false;
   for(var i=0;i<inputs.length;i++){
     var v=si[i];
     var bad=v!=null&&(v<1||v>18||counts[v]>1);
     if(bad) anyBad=true;
     inputs[i].classList.toggle('bad',bad);
+    var pb=par[i]!=null&&!isValidPar(par[i]);
+    if(pb) parBad=true;
+    pinputs[i].classList.toggle('bad',pb);
   }
-  var filled=si.filter(function(v){return v!=null;}).length;
-  var complete=filled===HOLES;
-  var valid=complete&&!anyBad;
-  if(anyBad){ msg.textContent='Fix the highlighted holes — stroke index must be 1–18 with no repeats.'; msg.className='sigridmsg bad'; }
-  else if(!complete){ msg.textContent='Enter the stroke index (1–18) for every hole ('+filled+'/18 entered).'; msg.className='sigridmsg'; }
-  else { msg.textContent='Valid stroke index sequence.'; msg.className='sigridmsg ok'; }
+  var filled=si.filter(function(v){return v!=null;}).length,pfilled=par.filter(function(v){return v!=null;}).length;
+  var valid=filled===HOLES&&pfilled===HOLES&&!anyBad&&!parBad;
+  if(parBad){ msg.textContent='Fix the highlighted holes — par must be 3–6.'; msg.className='sigridmsg bad'; }
+  else if(anyBad){ msg.textContent='Fix the highlighted holes — stroke index must be 1–18 with no repeats.'; msg.className='sigridmsg bad'; }
+  else if(!valid){ msg.textContent='Enter the par and stroke index for every hole (par '+pfilled+'/18, SI '+filled+'/18).'; msg.className='sigridmsg'; }
+  else { msg.textContent='Valid card · par '+sumPar(par)+'.'; msg.className='sigridmsg ok'; }
   return valid;
 }
 
@@ -631,10 +687,10 @@ function chkValid(){
   if(G.course==='away'){
     var ar=document.getElementById('awayrating').value,as=document.getElementById('awayslope').value;
     if(ar===''||as==='') ok=false;
-    if(!isValidSISequence(collectAwaySI())) ok=false;
+    if(!isValidSISequence(collectAwaySI())||!isValidParList(collectAwayPar())) ok=false;
   }
   if(editMode&&!chkEditRows()) ok=false;
-  if(hammerWanted()&&!(parseInt(document.getElementById('hmbase').value,10)>0)) ok=false;
+  if((hammerWanted()||(editMode&&G.hammer))&&!(parseInt(document.getElementById('hmbase').value,10)>0)) ok=false;
   if(editMode&&hmSetup.on&&hammerSetupOpen()&&!validHammerTeams(pickedTeams())) ok=false;
   document.getElementById('teeup').disabled=!ok;
 }
@@ -689,7 +745,7 @@ function startGame(){
     G.players.push(ns[i].value.trim());
     idx.push(parseFloat(hs[i].value)||0);
   }
-  G.awayHoles=G.course==='away'?buildAwayHoles(collectAwaySI()):null;
+  G.awayHoles=G.course==='away'?buildAwayHoles(collectAwaySI(),collectAwayPar()):null;
   applyHandicaps(G.players,idx,tee);
   G.roster=initRoster(G.players);
   G.holes=initHoles(G.players); G.active=0;
@@ -714,10 +770,7 @@ function openSetupEdit(){
   editMode=true;
   hmSetup.on=!!G.hammer;
   document.getElementById('hmbase').value=G.hammer?G.hammer.base:HAMMER_BASE;
-  editSnap={tee:G.tee,
-            rating:document.getElementById('awayrating').value,
-            slope:document.getElementById('awayslope').value,
-            si:collectAwaySI()};
+  editSnap={tee:G.tee,away:getAwayCard()};
   renderEditChrome();
   buildEditInputs();
   renderCourseUI();
@@ -774,7 +827,24 @@ function renderSettled(el,at){
   el.innerHTML=h;
 }
 
-function saveSetupEdit(){
+// The Hammer stake can be changed at any point in the round. Once Hammer holes
+// are settled that moves real money, so it asks first — like a score edit on
+// the full scorecard — and saves only on "Change it".
+function saveSetupEdit(confirmed){
+  var baseInp=document.getElementById('hmbase'),newBase=parseInt(baseInp.value,10);
+  var baseLate=!!G.hammer&&!hammerSetupOpen()&&newBase!==G.hammer.base;
+  if(baseLate&&!confirmed){
+    var bi=hammerBaseImpact(newBase),old=G.hammer.base;
+    if(bi.moved.length){
+      showModal({title:'Change settled Hammer money?',
+        body:'Changing the Hammer bet from <b>$'+old+'</b> to <b>$'+newBase+'</b> per man changes money already settled:<br><br>'+
+          bi.moved.map(function(p){return esc(p)+': Hammer '+fmt(bi.before[p]||0)+' → '+fmt(bi.after[p]||0);}).join('<br>'),
+        okLabel:'Change it',cancelLabel:'Keep $'+old,danger:true,
+        onOk:function(){ saveSetupEdit(true); },
+        onCancel:function(){ baseInp.value=old; chkValid(); }});
+      return;
+    }
+  }
   var rows=document.querySelectorAll('#ninputs .prow');
   var at=nextUnplayedHole();
   var snap=snapshotGame();
@@ -806,7 +876,7 @@ function saveSetupEdit(){
   var idx=G.players.map(function(p){
     return idxByName[p]!==undefined?idxByName[p]:(G.hdcp[p]||0);
   });
-  if(G.course==='away') G.awayHoles=buildAwayHoles(collectAwaySI());
+  if(G.course==='away') G.awayHoles=buildAwayHoles(collectAwaySI(),collectAwayPar());
   applyHandicaps(G.players,idx,activeTee());
   applyRoster();
 
@@ -833,6 +903,10 @@ function saveSetupEdit(){
     return;
   }
 
+  // A stake change on a settled Hammer is deliberate (and confirmed above), so
+  // it goes in after the settled-money guard, not through it.
+  if(baseLate) G.hammer.base=newBase;
+
   exitEditMode();
   showScreen('game'); renderGame();
 }
@@ -841,10 +915,7 @@ function cancelSetupEdit(){
   var snap=editSnap;
   if(snap){
     G.tee=snap.tee;
-    document.getElementById('awayrating').value=snap.rating;
-    document.getElementById('awayslope').value=snap.slope;
-    var inputs=document.querySelectorAll('#sigrid .siinp');
-    for(var i=0;i<inputs.length;i++) inputs[i].value=snap.si[i]==null?'':snap.si[i];
+    setAwayCard(snap.away);
   }
   exitEditMode();
   renderTeeInfo(); renderSIStatus();
@@ -1090,7 +1161,7 @@ document.addEventListener('click',function(e){
     if(G.active<HOLES-1) G.active++;
     renderGame();
     setTimeout(function(){var nav=document.getElementById('hnav');if(nav.children[G.active])nav.children[G.active].scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});},100);
-  } else if(a==='unlock'){
+  } else if(a==='unlock'||a==='hfix'){
     hole.locked=false; renderGame();
   } else if(a==='sclear'){
     hole.strokes[p]=''; renderGame(); focusScoreBox(p);
@@ -1213,6 +1284,16 @@ function renderSummary(){
       + '</span></div>';
   } else {
     sh+='<div class="strow"><span class="stl">No holes locked yet.</span></div>';
+  }
+  if(G.hammer&&lh.length){
+    var ts=hammerThrowStats();
+    sh+='<div class="strow"><span class="stl">Hammer throw success<br>(won the hole — a decline or on the scores)</span><span class="stv">'
+      + [0,1].map(function(t){
+          var x=ts[t],pct=x.throws?' · '+Math.round(100*x.wins/x.throws)+'%':'';
+          return '<span class="stvn" style="font-weight:500;font-size:13px">'+esc(teamNames(t))+' &nbsp;<span style="color:var(--goldk)">'+
+            (x.throws?x.wins+'/'+x.throws+pct:'no throws')+'</span></span>';
+        }).join('')
+      + '</span></div>';
   }
   document.getElementById('smstats').innerHTML=sh;
 
@@ -1370,6 +1451,180 @@ document.addEventListener('change',function(e){
 });
 
 // ---------------------------------------------------------------------------
+// Course import (GolfCourseAPI)
+//
+// Search a course, pick a tee, and its rating, slope, par and stroke index
+// fill the Away inputs — which stay editable and validated as if typed, since
+// crowd-sourced scorecards are sometimes wrong. Only at the tee, not
+// mid-round (the holes already played were scored against the card as it
+// was).
+//
+// GC_API_KEY is in the code on purpose, and is public with the repo and the
+// site: it's a free key (35 requests a day, an import is two) for a small
+// group, and it can be rotated at golfcourseapi.com. Whenever a lookup fails
+// — limit used up, key refused, no signal — the scorer is pointed at the
+// Away inputs below to enter the card by hand; once the day's limit is hit the
+// Import button says so until the next (UTC) day rather than failing again.
+// Each imported tee is also kept on the device (most recent first), so a
+// course played before needs no request and no signal.
+// ---------------------------------------------------------------------------
+
+var GC_API='https://api.golfcourseapi.com/v1/';
+var GC_API_KEY='DM6ZEDMHKI2SBNKFWKS56D4WOY';
+var awayName='';
+var imp={open:false,busy:false,failed:false,results:null,course:null,msg:'',bad:false,q:''};
+
+function localKey(k){ return (STORE_PARAM?STORE_KEY+'.':'banker.')+k; }
+function lsGet(k){ try{ return localStorage.getItem(localKey(k)); }catch(e){ return null; } }
+function lsSet(k,v){ try{ if(v==null) localStorage.removeItem(localKey(k)); else localStorage.setItem(localKey(k),v); return true; }catch(e){ return false; } }
+function utcDay(){ return new Date().toISOString().slice(0,10); }
+function lookupsUsedUp(){ return lsGet('gclimit')===utcDay(); }
+function savedCourses(){ try{ return JSON.parse(lsGet('courses'))||[]; }catch(e){ return []; } }
+
+function rememberCourse(c){
+  var list=savedCourses().filter(function(x){return x.name!==c.name;});
+  list.unshift(c);
+  lsSet('courses',JSON.stringify(list.slice(0,8)));
+}
+
+// Resolves with the JSON, or rejects with an Error whose .kind is 'key',
+// 'limit', 'net' or 'other' — each gets its own plain-words message.
+function gcGet(path){
+  return window.fetch(GC_API+path,{headers:{Authorization:'Bearer '+GC_API_KEY}}).then(function(r){
+    if(r.ok) return r.json();
+    var e=new Error('HTTP '+r.status);
+    e.kind=r.status===401||r.status===403?'key':r.status===429?'limit':'other';
+    if(e.kind==='limit') lsSet('gclimit',utcDay());
+    throw e;
+  },function(){ var e=new Error('network'); e.kind='net'; throw e; });
+}
+
+function gcErrorText(e){
+  return (e.kind==='key'?'Course lookup isn\'t working right now (the app\'s GolfCourseAPI key was refused).'
+    : e.kind==='limit'?'Today\'s course lookups are used up.'
+    : e.kind==='net'?'Couldn\'t reach the course lookup — no signal?'
+    : 'Course lookup had a problem ('+e.message+').')+' Enter the rating, slope, par and stroke index below by hand.';
+}
+
+// After a failed lookup: close the panel and put the cursor in the first box
+// of the card to type in.
+function enterByHand(){
+  imp.open=false; imp.results=null; imp.course=null; renderImport();
+  var r=document.getElementById('awayrating'); r.scrollIntoView({block:'center'}); r.focus();
+}
+
+function setImpMsg(t,bad){ imp.msg=t; imp.bad=!!bad; }
+
+function impSearch(){
+  var q=(document.getElementById('impq').value||'').trim();
+  imp.q=q;
+  if(q.length<3){ setImpMsg('Type at least 3 letters of the course or club name.',true); renderImport(); return; }
+  imp.failed=false; imp.busy=true; imp.results=null; imp.course=null; setImpMsg('Searching…'); renderImport();
+  gcGet('search?search_query='+encodeURIComponent(q)).then(function(d){
+    imp.results=(d&&d.courses)||[];
+    setImpMsg(imp.results.length?'':'No courses found for "'+q+'". Try the club name, or fewer words.',!imp.results.length);
+  },function(e){ setImpMsg(gcErrorText(e),true); imp.failed=true; }).then(function(){ imp.busy=false; renderImport(); });
+}
+
+function impPickCourse(id){
+  imp.failed=false; imp.busy=true; setImpMsg('Loading tees…'); renderImport();
+  gcGet('courses/'+encodeURIComponent(id)).then(function(d){
+    imp.course=d&&d.course?d.course:d;
+    setImpMsg('');
+  },function(e){ setImpMsg(gcErrorText(e),true); imp.failed=true; }).then(function(){ imp.busy=false; renderImport(); });
+}
+
+function impPickTee(i){
+  var t=courseTees(imp.course)[i],a=teeToAway(t.tee);
+  if(!a) return;
+  var name=courseLabel(imp.course).name+' · '+(t.tee.tee_name||'Tee')+' ('+t.tag+')';
+  var card={name:name,rating:a.rating,slope:a.slope,par:a.par,si:a.si,problems:a.problems};
+  applyCard(card);
+  rememberCourse(card);
+  imp.open=false; imp.results=null; imp.course=null; setImpMsg('');
+  renderImport();
+}
+
+function applyCard(card){
+  setAwayCard(card);
+  document.getElementById('awayname').innerHTML=esc(card.name)+(card.problems&&card.problems.length
+    ? '<small>The imported card is missing or has bad '+card.problems.join(', ')+' — check the highlighted boxes below.</small>':'');
+  chkValid(); updateLiveHandicaps();
+}
+
+function renderAwayName(){
+  document.getElementById('awayname').textContent=awayName;
+}
+
+function renderImport(){
+  var wrap=document.getElementById('impwrap');
+  wrap.style.display=editMode?'none':'block';
+  var openBtn=document.getElementById('impopen'),panel=document.getElementById('imppanel');
+  var usedUp=lookupsUsedUp();
+  openBtn.style.display=imp.open||!GC_API_KEY?'none':'block';
+  openBtn.disabled=usedUp;
+  openBtn.textContent=usedUp?'Course lookups used up today — enter the card below':'Import a course & tees';
+
+  var rec=savedCourses(),rh='';
+  if(rec.length&&!imp.open){
+    rh='<span class="implbl">SAVED ON THIS PHONE</span>';
+    rec.forEach(function(c,i){ rh+='<button type="button" class="impchip" data-imp="saved" data-v="'+i+'">'+esc(c.name)+'</button>'; });
+  }
+  document.getElementById('imprecent').innerHTML=rh;
+
+  panel.style.display=imp.open?'block':'none';
+  if(!imp.open){ panel.innerHTML=''; return; }
+  var h='';
+  if(imp.course){
+    var cl=courseLabel(imp.course),tees=courseTees(imp.course);
+    h+='<div style="font-weight:700;font-size:15px">'+esc(cl.name)+'</div>'+(cl.where?'<div class="impmsg" style="margin-top:0">'+esc(cl.where)+'</div>':'');
+    if(!tees.length) h+='<div class="impmsg bad">This course has no tees listed.</div>';
+    tees.forEach(function(t,i){
+      var tee=t.tee,bits=[];
+      if(tee.course_rating) bits.push(tee.course_rating+' / '+(tee.slope_rating||'?'));
+      if(tee.par_total) bits.push('Par '+tee.par_total);
+      if(tee.total_yards) bits.push(tee.total_yards.toLocaleString()+' yds');
+      h+='<button type="button" class="impres" data-imp="tee" data-v="'+i+'"'+(t.eighteen?'':' disabled')+'>'+
+        esc(tee.tee_name||'Tee')+' ('+(t.tag==='M'?'Men':'Women')+')<small>'+
+        (t.eighteen?bits.join(' · '):'Not an 18-hole card — can\'t be used')+'</small></button>';
+    });
+    h+='<div class="implinks"><button type="button" class="implink" data-imp="back">← Back to results</button></div>';
+  } else {
+    h+='<div class="prow"><input type="search" class="ni" id="impq" autocomplete="off" placeholder="Course or club name" value="'+esc(imp.q)+'">'+
+      '<button type="button" class="impgo" data-imp="search"'+(imp.busy?' disabled':'')+'>Search</button></div>';
+    (imp.results||[]).slice(0,15).forEach(function(c){
+      var cl=courseLabel(c);
+      h+='<button type="button" class="impres" data-imp="course" data-v="'+esc(c.id)+'">'+esc(cl.name)+
+        (cl.where?'<small>'+esc(cl.where)+'</small>':'')+'</button>';
+    });
+  }
+  if(imp.msg) h+='<div class="impmsg'+(imp.bad?' bad':'')+'">'+esc(imp.msg)+'</div>';
+  h+='<div class="implinks">'+(imp.failed?'<button type="button" class="implink" data-imp="byhand">Enter it by hand</button>':'<span></span>')+
+    '<button type="button" class="implink" data-imp="close">Close</button></div>';
+  panel.innerHTML=h;
+}
+
+document.getElementById('impopen').addEventListener('click',function(){
+  imp.open=true; imp.failed=false; setImpMsg(''); renderImport();
+  document.getElementById('impq').focus();
+});
+document.getElementById('impwrap').addEventListener('click',function(e){
+  var b=e.target.closest('[data-imp]'); if(!b||b.disabled) return;
+  var a=b.dataset.imp,v=b.dataset.v;
+  if(a==='saved'){ applyCard(savedCourses()[Number(v)]); rememberCourse(savedCourses()[Number(v)]); renderImport(); }
+  else if(a==='byhand') enterByHand();
+  else if(a==='search') impSearch();
+  else if(a==='course') impPickCourse(v);
+  else if(a==='tee') impPickTee(Number(v));
+  else if(a==='back'){ imp.course=null; setImpMsg(''); renderImport(); }
+  else if(a==='close'){ imp.open=false; setImpMsg(''); renderImport(); }
+});
+document.getElementById('impwrap').addEventListener('keydown',function(e){
+  if(e.key!=='Enter') return;
+  if(e.target.id==='impq'){ e.preventDefault(); impSearch(); }
+});
+
+// ---------------------------------------------------------------------------
 // Hammer UI
 //
 // Setup at the tee: an opt-in toggle (even player counts only) and a base
@@ -1465,8 +1720,8 @@ function renderHammerSetup(){
     on=!!G.hammer;
     btn.disabled=false; btn.classList.add('lk');
     sub.textContent=on
-      ? teamNames(0)+' vs '+teamNames(1)+' · $'+G.hammer.base+'/man'+(hammerStart()?' from hole '+(hammerStart()+1):'')+
-        '. Marking a team member out ends the Hammer; new players play Banker only.'
+      ? teamNames(0)+' vs '+teamNames(1)+(hammerStart()?' · from hole '+(hammerStart()+1):'')+
+        '. Teams are set; the bet below can still change. Marking a team member out ends the Hammer; new players play Banker only.'
       : 'Not playing Hammer — no holes left to play';
   } else if(editMode){
     on=hmSetup.on;
@@ -1484,7 +1739,7 @@ function renderHammerSetup(){
   }
   btn.classList.toggle('on',on);
   btn.setAttribute('aria-pressed',on?'true':'false');
-  document.getElementById('hmopts').style.display=(on&&open)?'flex':'none';
+  document.getElementById('hmopts').style.display=on&&(open||(editMode&&G.hammer))?'flex':'none';
 
   // Mid-round team picker.
   var picking=editMode&&open&&on;
@@ -1567,7 +1822,9 @@ function renderHammer(){
       'there is no Hammer from here on — holes already played still count.</div>';
   } else if(hole.locked){
     var r=hammerHole(hi);
-    h+='<div class="hmline"><b>'+(r?hammerOutcomeText(r):'No Hammer result on this hole.')+'</b></div>';
+    h+='<div class="hmline"><b>'+(r?hammerOutcomeText(r):'No Hammer result on this hole.')+'</b></div>'+
+      '<div class="hmrow"><button class="hmundo" data-action="hfix">✏️ Fix Hammer calls</button>'+
+      '<span style="font-size:11px;opacity:0.7">reopens the hole — lock it again when done</span></div>';
   } else if(s.pending!==null){
     var ans=otherTeam(s.pending);
     h+='<div class="hmalert"><div class="hmline"><b>🔨 '+teamNames(s.pending)+' threw the Hammer!</b><br>'+
@@ -1711,7 +1968,7 @@ function saveRound(){
   try{
     localStorage.setItem(STORE_KEY,serializeRound({
       awayRating:document.getElementById('awayrating').value,
-      awaySlope:document.getElementById('awayslope').value}));
+      awaySlope:document.getElementById('awayslope').value,awayName:awayName}));
     saveOk=true;
   }catch(e){ saveOk=false; }
 }
@@ -1722,10 +1979,9 @@ function clearSavedRound(){
 
 function resumeRound(o){
   loadRound(o);
-  document.getElementById('awayrating').value=o.awayRating;
-  document.getElementById('awayslope').value=o.awaySlope;
-  var si=document.querySelectorAll('#sigrid .siinp');
-  for(var i=0;i<si.length;i++) si[i].value=o.awayHoles?o.awayHoles[i].si:'';
+  setAwayCard({rating:o.awayRating,slope:o.awaySlope,name:o.awayName,
+    si:o.awayHoles?o.awayHoles.map(function(h){return h.si;}):null,
+    par:o.awayHoles?o.awayHoles.map(function(h){return h.par;}):null});
   gameLive=true;
   hmSetup.on=!!G.hammer;
   if(G.hammer) document.getElementById('hmbase').value=G.hammer.base;

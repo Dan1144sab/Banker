@@ -17,9 +17,11 @@ var G = {players:[],count:3,holes:[],active:0,hdcp:{},raw:{},chdcp:{},course:'ho
 
 function fmt(v){return v===0?'E':(v>0?'+$':'-$')+Math.abs(v);}
 
-// Course Handicap = Index x (Slope/113) + (Rating - Par)
+// Course Handicap = Index x (Slope/113) + (Rating - Par). Par is the tee's own
+// (an Away tee carries the par total of the card entered for it), else
+// Rolling Green's.
 function courseHdcp(index,tee,par){
-  if(par===undefined) par=COURSE.par;
+  if(par===undefined) par=tee.par!=null?tee.par:COURSE.par;
   return Math.round(index*(tee.slope/113)+(tee.rating-par));
 }
 
@@ -50,8 +52,8 @@ function applyHandicaps(players,indexes,tee,par){
 }
 
 // The holes in play for the current game: Rolling Green's layout at home, or
-// G.awayHoles (same pars, custom stroke-index sequence) when an away course
-// with its own SI sequence has been entered.
+// G.awayHoles (the away card's own par and stroke index) when one has been
+// entered.
 function activeHoles(){
   return (G.course==='away'&&G.awayHoles&&G.awayHoles.length===HOLES)?G.awayHoles:COURSE.holes;
 }
@@ -126,12 +128,70 @@ function isValidSISequence(si){
   return true;
 }
 
-// Builds an away course's holes array: keeps Rolling Green's par layout (par
-// isn't collected for away courses) but uses the entered SI sequence.
-function buildAwayHoles(si){
+// A hole's par is 3 to 6 (a par 6 is rare but real).
+function isValidPar(n){ return n>=3&&n<=6&&Math.floor(n)===n; }
+
+function isValidParList(par){
+  return !!par&&par.length===HOLES&&par.every(isValidPar);
+}
+
+function sumPar(par){ return par.reduce(function(t,n){return t+n;},0); }
+
+// Builds an away course's holes array from the entered par and SI for each
+// hole. With no par list (old callers and saves) it falls back to Rolling
+// Green's pars.
+function buildAwayHoles(si,par){
   var arr=[];
-  for(var i=0;i<HOLES;i++) arr.push({h:i+1,par:COURSE.holes[i].par,si:si[i]});
+  for(var i=0;i<HOLES;i++) arr.push({h:i+1,par:par?par[i]:COURSE.holes[i].par,si:si[i]});
   return arr;
+}
+
+// ---------------------------------------------------------------------------
+// Course import (GolfCourseAPI)
+//
+// index.html does the fetching; these turn the API's JSON into what the Away
+// setup needs. Imported data is a starting point, not gospel — every value
+// lands in the ordinary Away inputs, where the usual validation still applies
+// and the scorer can fix a bad hole.
+// ---------------------------------------------------------------------------
+
+function courseLabel(c){
+  var club=(c.club_name||'').trim(),course=(c.course_name||'').trim();
+  var name=!course||course===club?club:!club?course:club+' — '+course;
+  var loc=c.location||{},where=[loc.city,loc.state].filter(Boolean).join(', ');
+  return {name:name||'Unnamed course',where:where};
+}
+
+// Every tee on a course, men's first, each with what the picker shows.
+function courseTees(c){
+  var out=[],t=c.tees||{};
+  [['male','M'],['female','W']].forEach(function(g){
+    (t[g[0]]||[]).forEach(function(tee,i){
+      out.push({gender:g[0],tag:g[1],idx:i,tee:tee,
+        eighteen:Array.isArray(tee.holes)&&tee.holes.length===HOLES});
+    });
+  });
+  return out;
+}
+
+// An API tee box -> {rating, slope, par:[18], si:[18], problems:[...]}. A
+// value the API is missing or has wrong comes through as null (or, for a
+// stroke index, as-is) so the Away inputs flag it; `problems` says what to
+// check. Null if this isn't an 18-hole tee.
+function teeToAway(tee){
+  if(!tee||!Array.isArray(tee.holes)||tee.holes.length!==HOLES) return null;
+  var par=[],si=[],problems=[];
+  for(var i=0;i<HOLES;i++){
+    var h=tee.holes[i]||{};
+    par.push(isValidPar(h.par)?h.par:null);
+    si.push(h.handicap>=1&&h.handicap<=18?h.handicap:null);
+  }
+  var rating=typeof tee.course_rating==='number'&&tee.course_rating>0?tee.course_rating:null;
+  var slope=typeof tee.slope_rating==='number'&&tee.slope_rating>=55&&tee.slope_rating<=155?tee.slope_rating:null;
+  if(rating==null||slope==null) problems.push('rating/slope');
+  if(par.indexOf(null)!==-1) problems.push('par');
+  if(!isValidSISequence(si)) problems.push('stroke index');
+  return {rating:rating,slope:slope,par:par,si:si,problems:problems};
 }
 
 function initHoles(players){
@@ -307,7 +367,8 @@ function serializeRound(extra){
     players:G.players,roster:G.roster,hdcp:G.hdcp,raw:G.raw,chdcp:G.chdcp,
     holes:G.holes,active:G.active,awayHoles:G.awayHoles||null,hammer:G.hammer||null,
     awayRating:extra.awayRating==null?'':String(extra.awayRating),
-    awaySlope:extra.awaySlope==null?'':String(extra.awaySlope)});
+    awaySlope:extra.awaySlope==null?'':String(extra.awaySlope),
+    awayName:extra.awayName?String(extra.awayName):''});
 }
 
 // Returns the saved round, or null if the text is missing, corrupt, from a
@@ -677,6 +738,39 @@ function hammerTeamTotals(){
   var t=hammerTotals(),out=[0,0];
   for(var k=0;k<2;k++) for(var i=0;i<G.hammer.teams[k].length;i++) out[k]+=t[G.hammer.teams[k][i]];
   return out;
+}
+
+// Throw success per team, over the settled (locked) Hammer holes. A throw
+// succeeds when the throwing team won the hole — the other team declined it,
+// or accepted and lost on the scores. A halved hole is not a success. Each
+// throw on a hole counts, so a hammer thrown back and forth scores for both.
+//   [{throws, wins}, {throws, wins}]
+function hammerThrowStats(){
+  var out=[{throws:0,wins:0},{throws:0,wins:0}];
+  if(!G.hammer) return out;
+  for(var i=0;i<G.holes.length;i++){
+    if(!G.holes[i].locked) continue;
+    var r=hammerHole(i); if(!r) continue;
+    var log=G.hammer.log[i];
+    for(var j=0;j<log.length;j++){
+      if(log[j].t!=='throw') continue;
+      out[log[j].team].throws++;
+      if(r.win===log[j].team) out[log[j].team].wins++;
+    }
+  }
+  return out;
+}
+
+// What changing the Hammer base bet would do to the settled Hammer money
+// (locked holes). Every Hammer result scales with the base, so this is just
+// the totals at each base; G is left exactly as it was.
+function hammerBaseImpact(base){
+  var old=G.hammer.base,b0=hammerTotals();
+  G.hammer.base=base;
+  var b1=hammerTotals();
+  G.hammer.base=old;
+  var moved=G.players.filter(function(p){return (b0[p]||0)!==(b1[p]||0);});
+  return {moved:moved,before:b0,after:b1};
 }
 
 // Only a team that is down on the locked holes may press, only while there's
