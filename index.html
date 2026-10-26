@@ -1176,9 +1176,15 @@ document.addEventListener('click',function(e){
   } else if(a==='hundo'){
     hammerUndo(G.active); renderGame();
   } else if(a==='hpress'){
-    hammerPress(Number(v)); renderGame();
+    var pt=Number(v),phi=G.active;
+    confirmHammerChange(function(){hammerPress(pt,phi);},
+      teamNames(pt)+'\'s press from hole '+(phi+1)+' doubles holes already locked after it',
+      'Press anyway','Don\'t press');
   } else if(a==='hunpress'){
-    hammerUndoPress(); renderGame();
+    var uhi=G.active;
+    confirmHammerChange(function(){hammerUndoPress(uhi);},
+      'Taking back the press from hole '+(uhi+1)+' changes holes already locked after it',
+      'Take it back','Keep the press');
   }
 });
 
@@ -1824,7 +1830,7 @@ function renderHammer(){
     var r=hammerHole(hi);
     h+='<div class="hmline"><b>'+(r?hammerOutcomeText(r):'No Hammer result on this hole.')+'</b></div>'+
       '<div class="hmrow"><button class="hmundo" data-action="hfix">✏️ Fix Hammer calls</button>'+
-      '<span style="font-size:11px;opacity:0.7">reopens the hole — lock it again when done</span></div>';
+      '<span style="font-size:11px;opacity:0.7">reopens the hole for throws or a press — lock it again when done</span></div>';
   } else if(s.pending!==null){
     var ans=otherTeam(s.pending);
     h+='<div class="hmalert"><div class="hmline"><b>🔨 '+teamNames(s.pending)+' threw the Hammer!</b><br>'+
@@ -1857,21 +1863,37 @@ function renderHammer(){
     h+='</div>';
   }
 
-  // Presses are round-wide, not per hole.
-  var pressers=[0,1].filter(canHammerPress),ps=G.hammer.presses;
+  // A press starts on the hole it's made on (this one, while it's open);
+  // every press in the round is listed.
+  var pressers=[0,1].filter(function(t){return canHammerPress(t,hi);});
+  var ps=G.hammer.presses.slice().sort(function(a,b){return a.from-b.from;});
   if(ps.length){
     h+='<div class="hmpress hmrow">';
     for(var i=0;i<ps.length;i++) h+='<span class="hmtag">'+teamNames(ps[i].team)+' pressed from H'+(ps[i].from+1)+'</span>';
-    if(canUndoHammerPress()) h+='<button class="hmundo" data-action="hunpress">↶ Undo press</button>';
+    if(canUndoHammerPress(hi)) h+='<button class="hmundo" data-action="hunpress">↶ Undo press on H'+(hi+1)+'</button>';
     h+='</div>';
   }
   for(var i=0;i<pressers.length;i++){
-    var t=pressers[i],from=hammerPressFrom();
+    var t=pressers[i],from=hi;
     h+='<div class="hmbtns"><button class="hmbtn hmpbtn t'+t+'" data-action="hpress" data-v="'+t+'" aria-label="'+
       teamNames(t)+' press">'+hammerSVG(34)+'<span><span class="hmpw">Press</span><small>doubles holes '+(from+1)+'–18</small></span></button></div>';
   }
   h+='</div></div>';
   el.innerHTML=h;
+}
+
+// Runs a Hammer change (a press, or taking one back). If it would move money
+// already settled on locked holes — a press put on a reopened hole reaches
+// the locked holes after it — asks first, listing each player's Hammer
+// before -> after.
+function confirmHammerChange(change,what,okLabel,cancelLabel){
+  var bi=hammerMoneyImpact(change);
+  if(!bi.moved.length){ change(); renderGame(); return; }
+  showModal({title:'Change settled Hammer money?',
+    body:what+', so it changes money already settled:<br><br>'+
+      bi.moved.map(function(p){return esc(p)+': Hammer '+fmt(bi.before[p]||0)+' → '+fmt(bi.after[p]||0);}).join('<br>'),
+    okLabel:okLabel,cancelLabel:cancelLabel,danger:true,
+    onOk:function(){ change(); renderGame(); }});
 }
 
 function lastHammerCall(hi){

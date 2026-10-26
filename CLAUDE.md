@@ -422,10 +422,20 @@ Rules as implemented (agreed with the user):
   can throw back. Each accept doubles. **Declining** concedes the value
   *before* that throw and ends Hammer on the hole (no birdie double, no scores
   needed). The hole can't be locked while a throw is unanswered.
-- A team that is **down** on locked holes may **press**: doubles every hole from
-  `hammerPressFrom()` (the next unplayed hole, never before `hammerStart()`) to 18. **One press per hole** (by either team) — the press
-  button disappears until that hole is locked. Presses on later holes stack. The
-  latest press can be undone until a hole it covers is locked.
+- A team that is **down** may **press**: doubles every hole from the press's hole to
+  18. **A press belongs to the hole it starts on** — the hole being viewed, which must
+  be a Hammer hole that is open (unlocked) and no later than the next hole to play
+  (`canHammerPress(team, hi)`); "down" means on the locked holes *before* that hole
+  (`hammerTeamTotalsBefore(hi)`). **One press per hole** (by either team); presses on
+  later holes stack. A press can be taken back while its hole is open
+  (`canUndoHammerPress(hi)` / `hammerUndoPress(hi)`). With no `hi`, these default to
+  the next hole to play / the latest press.
+  So a **forgotten press** goes in by reopening the hole ("✏️ Fix Hammer calls") and
+  pressing there. If holes after it are already locked, that moves settled money, so
+  `confirmHammerChange()` runs the change through `hammerMoneyImpact()` (pure:
+  applies it, compares `hammerTotals()`, restores `G.hammer`) and asks first, listing
+  each player's Hammer before → after; same for taking a press back.
+  `hammerBaseImpact()` is built on the same helper.
 - Roster: **a player who arrives after Hammer started plays Banker only**,
   never Hammer. **If any team member leaves, the Hammer game is over** from the
   hole they left (`hammerEndsAt()` = earliest team member's roster `to`;

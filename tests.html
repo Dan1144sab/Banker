@@ -1041,6 +1041,38 @@ test('a Hammer throw succeeds when the throwing team wins the hole — by a decl
   hammerDone();
 });
 
+test('a forgotten press can be put on a locked hole once it is reopened',function(){
+  hammerFixture();
+  hscore(0,5,5,4,5); G.holes[0].locked=true;   // Team 2 wins: Team 1 down $10
+  hscore(1,6,6,6,6); G.holes[1].locked=true;   // hole 2 (par 5): halved
+  hscore(2,5,5,4,5); G.holes[2].locked=true;   // hole 3: Team 2 wins $10
+  assertTrue(!canHammerPress(0,1),'hole 2 is locked — no press on it');
+  G.holes[1].locked=false;                      // Fix Hammer calls on hole 2
+  assertTrue(canHammerPress(0,1),'reopened, and Team 1 was down after hole 1');
+  assertTrue(!canHammerPress(1,1),'Team 2 was up');
+  var imp=hammerMoneyImpact(function(){hammerPress(0,1);});
+  assertEqual(imp.after.C,30,'hole 3 now pays double ($10 + $20)'); assertEqual(imp.before.C,20);
+  assertEqual(G.hammer.presses,[],'hammerMoneyImpact leaves G alone');
+  assertTrue(hammerPress(0,1));
+  assertEqual(G.hammer.presses,[{team:0,from:1}]);
+  assertTrue(!canHammerPress(1,1)&&!canHammerPress(0,1),'one press per hole');
+  assertTrue(canUndoHammerPress(1),'open hole: the press can be taken back');
+  G.holes[1].locked=true;
+  assertEqual(hammerTotals().C,30);
+  assertTrue(!canUndoHammerPress(1)&&!hammerUndoPress(1),'locked again: it stands');
+  G.holes[1].locked=false;
+  assertTrue(hammerUndoPress(1)); assertEqual(G.hammer.presses,[]);
+  hammerDone();
+});
+
+test('a press can\'t be made ahead on a hole past the next one to play',function(){
+  hammerFixture();
+  hscore(0,5,5,4,5); G.holes[0].locked=true;
+  assertTrue(canHammerPress(0,1),'hole 2 is next');
+  assertTrue(!canHammerPress(0,2)&&!hammerPress(0,2),'hole 3 is not');
+  hammerDone();
+});
+
 test('hammerBaseImpact scales settled Hammer money and leaves G alone',function(){
   hammerFixture();
   hscore(0,4,5,5,5); G.holes[0].locked=true;   // Team 1 wins $10
@@ -2024,6 +2056,34 @@ document.title=(fail?'✗ FAIL':'✓ PASS')+' — Banker Logic Tests';
       fd.querySelector('#hcard [data-action="lock"]').click();
       addResult('and locking it again leaves the money as it was',fw.G.holes[0].locked&&fw.hammerTotals().Ann===ann0,'');
       fw.G.active=actHi; fw.renderGame();
+
+      // ---- Hammer: a forgotten press on a locked hole ----
+      var pSnap=fw.snapshotGame();
+      var ph1=fw.G.holes[1],ph2=fw.G.holes[2];
+      ph1.banker='Ann'; ph1.strokes={Ann:'6',Ben:'6',Cal:'6',Dee:'6'}; ph1.locked=true;   // par 5: halved
+      ph2.banker='Ann'; ph2.strokes={Ann:'5',Ben:'5',Cal:'4',Dee:'5'}; ph2.locked=true;   // Cal & Dee win
+      fw.G.active=1; fw.renderGame();
+      function pbtn(t){return fd.querySelector('#hmbar [data-action="hpress"][data-v="'+t+'"]');}
+      addResult('a locked hole has no press button, but can be reopened',!pbtn(0)&&!pbtn(1)&&!!fd.querySelector('#hmbar [data-action="hfix"]'),'');
+      fd.querySelector('#hmbar [data-action="hfix"]').click();
+      addResult('reopened, the team that was down can press from that hole',
+        !!pbtn(1)&&!pbtn(0)&&/doubles holes 2–18/.test(pbtn(1).textContent),'');
+      var calBefore=fw.hammerTotals().Cal;
+      pbtn(1).click();
+      addResult('because hole 3 is already locked, it warns before moving settled money',
+        modalOn()&&/Change settled Hammer money/.test(fd.getElementById('mtitle').textContent)&&/Cal: Hammer/.test(fd.getElementById('mbody').textContent),
+        fd.getElementById('mbody').textContent);
+      fd.getElementById('mcancel').click();
+      addResult('"Don\'t press" changes nothing',fw.G.hammer.presses.length===0&&fw.hammerTotals().Cal===calBefore,'');
+      pbtn(1).click(); fd.getElementById('mok').click();
+      addResult('"Press anyway" puts the press on hole 2, and hole 3 pays double',
+        JSON.stringify(fw.G.hammer.presses)==='[{"team":1,"from":1}]'&&fw.hammerTotals().Cal===calBefore+fw.G.hammer.base,
+        JSON.stringify(fw.G.hammer.presses)+' Cal='+fw.hammerTotals().Cal);
+      var unp=fd.querySelector('#hmbar [data-action="hunpress"]');
+      addResult('the press can be taken back while the hole is open',!!unp&&/Undo press on H2/.test(unp.textContent),'');
+      unp.click(); fd.getElementById('mok').click();
+      addResult('and taking it back (confirmed) restores the money',fw.G.hammer.presses.length===0&&fw.hammerTotals().Cal===calBefore,'');
+      fw.restoreGame(pSnap); fw.renderGame();
 
       // ---- Hammer: a team member leaving ends it ----
       fd.getElementById('editbtn').click();

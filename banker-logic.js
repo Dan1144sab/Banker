@@ -765,49 +765,78 @@ function hammerThrowStats(){
 // (locked holes). Every Hammer result scales with the base, so this is just
 // the totals at each base; G is left exactly as it was.
 function hammerBaseImpact(base){
-  var old=G.hammer.base,b0=hammerTotals();
-  G.hammer.base=base;
+  return hammerMoneyImpact(function(){ G.hammer.base=base; });
+}
+
+// What a change to G.hammer (base, presses) would do to the settled Hammer
+// money: runs `change`, compares totals, and puts G.hammer back as it was.
+function hammerMoneyImpact(change){
+  var saved=JSON.stringify(G.hammer),b0=hammerTotals();
+  change();
   var b1=hammerTotals();
-  G.hammer.base=old;
+  G.hammer=JSON.parse(saved);
   var moved=G.players.filter(function(p){return (b0[p]||0)!==(b1[p]||0);});
   return {moved:moved,before:b0,after:b1};
 }
 
-// Only a team that is down on the locked holes may press, only while there's
-// a Hammer hole left to play, and only once per hole — a press starting on
-// the current hole blocks another (by either team) until that hole is locked.
-// The hole a press made now starts on: the next one to play, but never
-// before Hammer itself starts.
+// Presses belong to the hole they start on. A press can be made on hole hi
+// when it's a Hammer hole open for calls (unlocked), no later than the next
+// hole to play, and the pressing team was down on the locked holes before it.
+// One press per hole, by either team. Normally hi is the next hole to play;
+// reopening a locked hole ("Fix Hammer calls") lets a forgotten press be put
+// on it — which reaches into any later holes already locked, so the UI warns
+// first (hammerMoneyImpact).
+//
+// hi defaults to the next hole to play (never before Hammer starts).
 function hammerPressFrom(){
   return Math.max(nextUnplayedHole(),hammerStart());
 }
 
-function canHammerPress(team){
+// Team totals over the locked holes before hole index hi.
+function hammerTeamTotalsBefore(hi){
+  var out=[0,0];
+  if(!G.hammer) return out;
+  for(var i=0;i<hi&&i<G.holes.length;i++){
+    if(!G.holes[i].locked) continue;
+    var r=hammerHole(i); if(!r) continue;
+    for(var k=0;k<2;k++) out[k]+=r.res[G.hammer.teams[k][0]]||0;
+  }
+  return out;
+}
+
+function hammerPressAt(hi){
+  if(!G.hammer) return null;
+  for(var i=0;i<G.hammer.presses.length;i++) if(G.hammer.presses[i].from===hi) return G.hammer.presses[i];
+  return null;
+}
+
+function canHammerPress(team,hi){
   if(!G.hammer) return false;
-  var at=hammerPressFrom();
-  if(at>=hammerEndsAt()) return false;
-  if(G.hammer.presses.some(function(p){return p.from===at;})) return false;
-  return hammerTeamTotals()[team]<0;
+  if(hi===undefined) hi=hammerPressFrom();
+  if(hi>nextUnplayedHole()||!hammerOpen(hi)) return false;
+  if(hammerPressAt(hi)) return false;
+  return hammerTeamTotalsBefore(hi)[team]<0;
 }
 
-function hammerPress(team){
-  if(!canHammerPress(team)) return false;
-  G.hammer.presses.push({team:team,from:hammerPressFrom()});
+function hammerPress(team,hi){
+  if(hi===undefined) hi=hammerPressFrom();
+  if(!canHammerPress(team,hi)) return false;
+  G.hammer.presses.push({team:team,from:hi});
   return true;
 }
 
-// The latest press can be taken back until a hole it covers is locked — after
-// that it has paid out, and removing it would move settled money.
-function canUndoHammerPress(){
+// A press can be taken back while the hole it starts on is open (unlocked).
+// hi defaults to the latest press's hole.
+function canUndoHammerPress(hi){
   if(!G.hammer||!G.hammer.presses.length) return false;
-  var from=G.hammer.presses[G.hammer.presses.length-1].from;
-  for(var i=from;i<G.holes.length;i++) if(G.holes[i].locked) return false;
-  return true;
+  if(hi===undefined) hi=G.hammer.presses[G.hammer.presses.length-1].from;
+  return !!hammerPressAt(hi)&&!G.holes[hi].locked;
 }
 
-function hammerUndoPress(){
-  if(!canUndoHammerPress()) return false;
-  G.hammer.presses.pop();
+function hammerUndoPress(hi){
+  if(hi===undefined&&G.hammer&&G.hammer.presses.length) hi=G.hammer.presses[G.hammer.presses.length-1].from;
+  if(!canUndoHammerPress(hi)) return false;
+  G.hammer.presses=G.hammer.presses.filter(function(p){return p.from!==hi;});
   return true;
 }
 
